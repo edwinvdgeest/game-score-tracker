@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Spelscores 🎲
 
-## Getting Started
+Score tracker voor Edwin & Lisanne (en soms Minou). Score loggen in 2 taps, direct inzicht in wie er wint.
 
-First, run the development server:
+## Lokaal draaien
+
+### 1. Supabase project aanmaken
+
+1. Ga naar [supabase.com](https://supabase.com) en maak een gratis project aan
+2. Ga naar **SQL Editor** en voer de migrations uit in deze volgorde:
+   - `supabase/migrations/001_create_tables.sql`
+   - `supabase/migrations/002_seed_data.sql`
+
+### 2. Environment instellen
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Vul in `.env.local`:
+- `NEXT_PUBLIC_SUPABASE_URL` — te vinden in Supabase → Project Settings → API
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — te vinden op dezelfde pagina
+- `SUPABASE_SERVICE_ROLE_KEY` — alleen nodig voor het import script (API keys sectie)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Installeren en starten
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+npm run dev
+```
 
-## Learn More
+Open [http://localhost:3000](http://localhost:3000)
 
-To learn more about Next.js, take a look at the following resources:
+## Google Sheet importeren
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Exporteer je Google Sheet als CSV en draai:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npx tsx scripts/import-google-sheet.ts /pad/naar/export.csv
+```
 
-## Deploy on Vercel
+Verwachte CSV-kolommen: `Datum, Game, Winnaar, Beginner, Score Edwin, Score Lisanne, Weekdag`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Het script slaat dubbele rijen automatisch over op basis van datum + spel.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deployen naar Vercel
+
+1. Push naar GitHub
+2. Importeer in [vercel.com](https://vercel.com)
+3. Stel de environment variables in (zelfde als `.env.local`, zonder `SUPABASE_SERVICE_ROLE_KEY`)
+4. Deploy!
+
+## Schermen
+
+| Scherm | Pad | Beschrijving |
+|--------|-----|-------------|
+| Quick Log | `/` | Game kiezen → winnaar → confetti 🎉 |
+| Scorebord | `/dashboard` | Leaderboard, streaks, grafieken |
+| Spellen | `/games` | Lijst beheren, nieuw spel toevoegen |
+
+## Tech Stack
+
+- **Next.js 16** (App Router, TypeScript strict mode)
+- **Supabase** (PostgreSQL)
+- **Tailwind CSS v4** + shadcn/ui
+- **Recharts** voor grafieken
+- **react-confetti** voor win-animaties
+- **Zod** voor validatie
+- **date-fns** voor datumformattering
