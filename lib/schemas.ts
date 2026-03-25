@@ -109,3 +109,20 @@ export type StatsResponse = z.infer<typeof statsResponseSchema>;
 
 export const periodFilterSchema = z.enum(["all", "this_year", "last_year"]);
 export type PeriodFilter = z.infer<typeof periodFilterSchema>;
+
+// API input schema for PATCH /api/sessions/[id]
+export const updateSessionSchema = z.object({
+  winner_id: z.string().uuid().optional(),
+  starter_id: z.string().uuid().nullable().optional(),
+  played_at: z.string().datetime().optional(),
+  notes: z.string().max(500).nullable().optional(),
+  scores: z
+    .array(
+      z.object({
+        player_id: z.string().uuid(),
+        score: z.number().int().nullable(),
+      })
+    )
+    .optional(),
+});
+export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;

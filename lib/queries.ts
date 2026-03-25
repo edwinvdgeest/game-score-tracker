@@ -13,6 +13,7 @@ import type {
   PeriodFilter,
   CreateSessionInput,
   CreateGameInput,
+  UpdateSessionInput,
 } from "@/lib/schemas";
 
 /** Fetch all active players */
@@ -249,6 +250,79 @@ export async function getGameSuggestion(): Promise<Game[]> {
   const candidates = scored.slice(0, Math.min(5, scored.length));
 
   return candidates.map((c) => c.game);
+}
+
+/** Full session detail type for history page */
+export type SessionDetail = {
+  id: string;
+  played_at: string;
+  day_of_week: number;
+  winner_id: string;
+  starter_id: string | null;
+  notes: string | null;
+  game: Game;
+  winner: Player;
+};
+
+/** Fetch all sessions ordered by played_at desc */
+export async function getAllSessions(): Promise<SessionDetail[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("game_sessions")
+    .select("id, played_at, day_of_week, winner_id, starter_id, notes, game:games(*), winner:players!winner_id(*)")
+    .order("played_at", { ascending: false });
+  if (error) throw new Error(`Failed to fetch sessions: ${error.message}`);
+  return (data ?? []) as unknown as SessionDetail[];
+}
+
+/** Update an existing session */
+export async function updateSession(
+  id: string,
+  input: UpdateSessionInput
+): Promise<void> {
+  const supabase = createServerClient();
+  const updates: Record<string, unknown> = {};
+  if (input.winner_id !== undefined) updates.winner_id = input.winner_id;
+  if (input.starter_id !== undefined) updates.starter_id = input.starter_id;
+  if (input.played_at !== undefined) {
+    updates.played_at = input.played_at;
+    updates.day_of_week = new Date(input.played_at).getDay();
+  }
+  if (input.notes !== undefined) updates.notes = input.notes;
+
+  if (Object.keys(updates).length > 0) {
+    const { error } = await supabase
+      .from("game_sessions")
+      .update(updates)
+      .eq("id", id);
+    if (error) throw new Error(`Failed to update session: ${error.message}`);
+  }
+
+  // Update scores if provided
+  if (input.scores !== undefined) {
+    // Delete existing scores and re-insert
+    const { error: deleteError } = await supabase
+      .from("session_players")
+      .delete()
+      .eq("session_id", id);
+    if (deleteError) throw new Error(`Failed to delete scores: ${deleteError.message}`);
+
+    if (input.scores.length > 0) {
+      const { error: insertError } = await supabase
+        .from("session_players")
+        .insert(input.scores.map((s) => ({ session_id: id, player_id: s.player_id, score: s.score ?? null })));
+      if (insertError) throw new Error(`Failed to insert scores: ${insertError.message}`);
+    }
+  }
+}
+
+/** Delete a session (and its session_players via cascade) */
+export async function deleteSession(id: string): Promise<void> {
+  const supabase = createServerClient();
+  // Delete session_players first (in case no cascade)
+  await supabase.from("session_players").delete().eq("session_id", id);
+  const { error } = await supabase.from("game_sessions").delete().eq("id", id);
+  if (error) throw new Error(`Failed to delete session: ${error.message}`);
 }
 
 /** Get stats (leaderboard, streaks, top games, recent sessions) for a period */
