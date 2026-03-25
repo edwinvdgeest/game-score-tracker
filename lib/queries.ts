@@ -1,5 +1,10 @@
 import { createServerClient } from "@/lib/supabase/server";
 import {
+  calculateAchievements,
+  type AchievementSession,
+  type PlayerAchievements,
+} from "@/lib/achievements";
+import {
   calculateCurrentStreak,
   calculateLongestStreak,
   getPeriodDateRange,
@@ -370,6 +375,56 @@ export async function getDayOfWeekStats(): Promise<{
   }
 
   return { stats, players };
+}
+
+/** Get achievements for all active players */
+export async function getPlayerAchievements(): Promise<PlayerAchievements[]> {
+  const supabase = createServerClient();
+
+  const [sessionsResult, sessionPlayersResult, playersResult] = await Promise.all([
+    supabase
+      .from("game_sessions")
+      .select("id, played_at, game_id, winner_id")
+      .order("played_at", { ascending: true }),
+    supabase.from("session_players").select("session_id, player_id"),
+    supabase.from("players").select("*").eq("is_active", true),
+  ]);
+
+  if (sessionsResult.error) throw new Error(sessionsResult.error.message);
+  if (sessionPlayersResult.error) throw new Error(sessionPlayersResult.error.message);
+  if (playersResult.error) throw new Error(playersResult.error.message);
+
+  const rawSessions = sessionsResult.data ?? [];
+  const sessionPlayers = sessionPlayersResult.data ?? [];
+  const players = (playersResult.data ?? []) as Player[];
+
+  // Build map session_id → player IDs
+  const sessionPlayerMap = new Map<string, string[]>();
+  for (const sp of sessionPlayers) {
+    const arr = sessionPlayerMap.get(sp.session_id as string) ?? [];
+    arr.push(sp.player_id as string);
+    sessionPlayerMap.set(sp.session_id as string, arr);
+  }
+
+  // Build AchievementSession objects
+  // If session_players is empty for a session, assume all active players participated
+  const allPlayerIds = players.map((p) => p.id);
+  const achievementSessions: AchievementSession[] = rawSessions.map((s) => ({
+    id: s.id as string,
+    played_at: s.played_at as string,
+    game_id: s.game_id as string,
+    winner_id: s.winner_id as string,
+    players: sessionPlayerMap.get(s.id as string) ?? allPlayerIds,
+  }));
+
+  return players.map((player) => {
+    const achievements = calculateAchievements(achievementSessions, player.id);
+    return {
+      player,
+      achievements,
+      earnedCount: achievements.filter((a) => a.earnedAt !== null).length,
+    };
+  });
 }
 
 /** Starter advantage stat per game */
