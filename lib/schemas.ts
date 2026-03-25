@@ -36,7 +36,7 @@ export const gameSessionSchema = z.object({
   game_id: z.string().uuid(),
   played_at: z.string(),
   day_of_week: z.number().int().min(0).max(6),
-  winner_id: z.string().uuid(),
+  winner_id: z.string().uuid().nullable(),
   starter_id: z.string().uuid().nullable(),
   notes: z.string().nullable(),
   created_at: z.string(),
@@ -54,7 +54,7 @@ export type SessionPlayer = z.infer<typeof sessionPlayerSchema>;
 // API input schemas (for POST requests)
 export const createSessionSchema = z.object({
   game_id: z.string().uuid(),
-  winner_id: z.string().uuid(),
+  winner_id: z.string().uuid().nullable(),
   starter_id: z.string().uuid().nullable().optional(),
   played_at: z.string().datetime().optional(),
   notes: z.string().max(500).nullable().optional(),
@@ -101,7 +101,7 @@ export const statsResponseSchema = z.object({
   recent_sessions: z.array(
     gameSessionSchema.extend({
       game: gameSchema,
-      winner: playerSchema,
+      winner: playerSchema.nullable(),
     })
   ),
 });
