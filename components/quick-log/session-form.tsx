@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { Game, Player } from "@/lib/schemas";
 import { GameGrid } from "./game-grid";
-import { WinnerPicker } from "./winner-picker";
+import { StarterPicker } from "./starter-picker";
 import { ScoreEntry } from "./score-entry";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -17,21 +17,37 @@ interface SessionFormProps {
   players: Player[];
 }
 
-type Step = "game" | "winner" | "scores" | "done";
+type Step = "game" | "starter" | "scores" | "done";
 
 const PROGRESS_STEP: Record<Exclude<Step, "done">, number> = {
   game: 0,
-  winner: 1,
+  starter: 1,
   scores: 2,
 };
+
+/** Returns the winning player (highest score), or null on tie / no scores entered */
+function computeWinner(
+  players: Player[],
+  scores: Record<string, string>
+): Player | null {
+  const parsed = players
+    .map((p) => ({ player: p, score: parseInt(scores[p.id] ?? "", 10) }))
+    .filter((s) => !isNaN(s.score));
+  if (parsed.length === 0) return null;
+  const max = Math.max(...parsed.map((s) => s.score));
+  const tops = parsed.filter((s) => s.score === max);
+  return tops.length === 1 ? tops[0].player : null;
+}
 
 export function SessionForm({ games, players }: SessionFormProps) {
   const [step, setStep] = useState<Step>("game");
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
-  const [selectedWinner, setSelectedWinner] = useState<Player | null>(null);
+  const [selectedStarter, setSelectedStarter] = useState<Player | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
   const [showConfetti, setShowConfetti] = useState(false);
   const [saving, setSaving] = useState(false);
+  // undefined = not yet saved; null = saved with tie; Player = saved with winner
+  const [winner, setWinner] = useState<Player | null | undefined>(undefined);
 
   // Default: everyone except Minou
   const [activePlayerIds, setActivePlayerIds] = useState<Set<string>>(
@@ -58,20 +74,27 @@ export function SessionForm({ games, players }: SessionFormProps) {
 
   const handleGameSelect = useCallback((game: Game) => {
     setSelectedGame(game);
-    setStep("winner");
+    setStep("starter");
   }, []);
 
-  const handleWinnerSelect = useCallback((player: Player) => {
-    setSelectedWinner(player);
+  const handleStarterSelect = useCallback((player: Player) => {
+    setSelectedStarter(player);
+    setStep("scores");
+  }, []);
+
+  const handleStarterSkip = useCallback(() => {
+    setSelectedStarter(null);
     setStep("scores");
   }, []);
 
   const handleSave = useCallback(
     async (scoreValues: Record<string, string>) => {
-      if (!selectedGame || !selectedWinner) return;
+      if (!selectedGame) return;
       setSaving(true);
 
-      // Always include all active players; score is null if not entered
+      const computedWinner = computeWinner(activePlayers, scoreValues);
+      setWinner(computedWinner);
+
       const scoresArray = activePlayers.map((p) => ({
         player_id: p.id,
         score: scoreValues[p.id]?.trim()
@@ -85,14 +108,13 @@ export function SessionForm({ games, players }: SessionFormProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             game_id: selectedGame.id,
-            winner_id: selectedWinner.id,
+            winner_id: computedWinner?.id ?? null,
+            starter_id: selectedStarter?.id ?? null,
             scores: scoresArray,
           }),
         });
 
-        if (!response.ok) {
-          throw new Error("Opslaan mislukt");
-        }
+        if (!response.ok) throw new Error("Opslaan mislukt");
 
         setShowConfetti(true);
         setStep("done");
@@ -101,16 +123,18 @@ export function SessionForm({ games, players }: SessionFormProps) {
           setShowConfetti(false);
           setStep("game");
           setSelectedGame(null);
-          setSelectedWinner(null);
+          setSelectedStarter(null);
           setScores({});
+          setWinner(undefined);
         }, 3500);
       } catch {
         toast.error("Oeps! Er ging iets mis. Probeer opnieuw.");
+        setWinner(undefined);
       } finally {
         setSaving(false);
       }
     },
-    [selectedGame, selectedWinner, activePlayers]
+    [selectedGame, selectedStarter, activePlayers]
   );
 
   const handleScoreChange = useCallback((playerId: string, value: string) => {
@@ -118,16 +142,16 @@ export function SessionForm({ games, players }: SessionFormProps) {
   }, []);
 
   const handleBack = useCallback(() => {
-    if (step === "winner") {
+    if (step === "starter") {
       setStep("game");
       setSelectedGame(null);
     } else if (step === "scores") {
-      setStep("winner");
-      setSelectedWinner(null);
+      setStep("starter");
+      setSelectedStarter(null);
     }
   }, [step]);
 
-  if (step === "done" && selectedGame && selectedWinner) {
+  if (step === "done" && selectedGame) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         {showConfetti && (
@@ -137,15 +161,27 @@ export function SessionForm({ games, players }: SessionFormProps) {
             colors={["#FF6B6B", "#FFE66D", "#4ECDC4", "#A29BFE"]}
           />
         )}
-        <div
-          className="text-6xl mb-4"
-          style={{ animation: "bounce 1s infinite" }}
-        >
-          {selectedWinner.emoji}
-        </div>
-        <h2 className="text-2xl font-black mb-2">
-          {selectedWinner.name} wint! 🎉
-        </h2>
+        {winner ? (
+          <>
+            <div
+              className="text-6xl mb-4"
+              style={{ animation: "bounce 1s infinite" }}
+            >
+              {winner.emoji}
+            </div>
+            <h2 className="text-2xl font-black mb-2">🏆 {winner.name} wint!</h2>
+          </>
+        ) : (
+          <>
+            <div
+              className="text-6xl mb-4"
+              style={{ animation: "bounce 1s infinite" }}
+            >
+              🤝
+            </div>
+            <h2 className="text-2xl font-black mb-2">Gelijkspel!</h2>
+          </>
+        )}
         <p style={{ color: "var(--muted-foreground)" }} className="font-semibold">
           {selectedGame.emoji} {selectedGame.name}
         </p>
@@ -211,7 +247,7 @@ export function SessionForm({ games, players }: SessionFormProps) {
         </>
       )}
 
-      {step === "winner" && (
+      {step === "starter" && (
         <>
           <div className="flex items-center gap-2">
             <button
@@ -222,15 +258,15 @@ export function SessionForm({ games, players }: SessionFormProps) {
               ← {selectedGame?.emoji} {selectedGame?.name}
             </button>
           </div>
-          <WinnerPicker
+          <StarterPicker
             players={activePlayers}
-            selectedWinnerId={selectedWinner?.id ?? null}
-            onSelect={handleWinnerSelect}
+            onSelect={handleStarterSelect}
+            onSkip={handleStarterSkip}
           />
         </>
       )}
 
-      {step === "scores" && selectedWinner && (
+      {step === "scores" && (
         <>
           <div className="flex items-center gap-2">
             <button
@@ -238,15 +274,16 @@ export function SessionForm({ games, players }: SessionFormProps) {
               className="font-bold text-sm cursor-pointer"
               style={{ color: "var(--muted-foreground)" }}
             >
-              ← {selectedWinner.emoji} {selectedWinner.name}
+              ←{" "}
+              {selectedStarter
+                ? `${selectedStarter.emoji} ${selectedStarter.name} begon`
+                : "Wie begon?"}
             </button>
           </div>
           <ScoreEntry
             players={activePlayers}
-            winnerId={selectedWinner.id}
             scores={scores}
             onChange={handleScoreChange}
-            onSkip={() => void handleSave({})}
             onSave={() => void handleSave(scores)}
             saving={saving}
           />
