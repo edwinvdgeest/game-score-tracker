@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { Search, X } from "lucide-react";
 import type { Game } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 
@@ -10,11 +12,47 @@ interface GameGridProps {
 }
 
 export function GameGrid({ games, selectedGameId, onSelect }: GameGridProps) {
+  const [query, setQuery] = useState("");
+
+  const filtered = query.trim()
+    ? games.filter((g) =>
+        g.name.toLowerCase().includes(query.toLowerCase().trim())
+      )
+    : games;
+
   return (
     <div>
       <h2 className="text-lg font-extrabold mb-3">Welk spel?</h2>
+
+      <div className="relative mb-3">
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+          style={{ color: "var(--muted-foreground)" }}
+        />
+        <input
+          type="text"
+          placeholder="Zoek spel..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full pl-9 pr-8 py-2 rounded-xl border-2 text-sm font-semibold outline-none transition-colors"
+          style={{
+            borderColor: query ? "var(--color-coral)" : "var(--border)",
+            backgroundColor: "white",
+          }}
+        />
+        {query && (
+          <button
+            onClick={() => setQuery("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
+            aria-label="Zoekveld leegmaken"
+          >
+            <X className="w-4 h-4" style={{ color: "var(--muted-foreground)" }} />
+          </button>
+        )}
+      </div>
+
       <div className="grid grid-cols-3 gap-2">
-        {games.map((game) => (
+        {filtered.map((game) => (
           <button
             key={game.id}
             onClick={() => onSelect(game)}
@@ -32,6 +70,14 @@ export function GameGrid({ games, selectedGameId, onSelect }: GameGridProps) {
             </span>
           </button>
         ))}
+        {filtered.length === 0 && (
+          <p
+            className="col-span-3 text-center py-8 text-sm font-semibold"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            Geen spellen gevonden 🤷
+          </p>
+        )}
       </div>
     </div>
   );
