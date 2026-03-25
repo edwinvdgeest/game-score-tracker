@@ -1,4 +1,4 @@
-import { getStats } from "@/lib/queries";
+import { getStats, getGames } from "@/lib/queries";
 import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import { SetupBanner } from "@/components/setup-banner";
 
@@ -6,7 +6,10 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   try {
-    const initialStats = await getStats("all");
+    const [initialStats, games] = await Promise.all([
+      getStats("all"),
+      getGames(),
+    ]);
 
     return (
       <div className="space-y-6">
@@ -24,7 +27,7 @@ export default async function DashboardPage() {
             Wie wint er het vaakst?
           </p>
         </div>
-        <DashboardClient initialStats={initialStats} />
+        <DashboardClient initialStats={initialStats} games={games} />
       </div>
     );
   } catch {

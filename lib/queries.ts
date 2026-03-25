@@ -401,7 +401,10 @@ export async function getStarterStats(gameId: string): Promise<StarterStat | nul
 }
 
 /** Get stats (leaderboard, streaks, top games, recent sessions) for a period */
-export async function getStats(period: PeriodFilter): Promise<StatsResponse> {
+export async function getStats(
+  period: PeriodFilter,
+  gameId?: string | null
+): Promise<StatsResponse> {
   const supabase = createServerClient();
   const dateRange = getPeriodDateRange(period);
 
@@ -415,6 +418,10 @@ export async function getStats(period: PeriodFilter): Promise<StatsResponse> {
     sessionQuery = sessionQuery
       .gte("played_at", dateRange.from)
       .lte("played_at", dateRange.to);
+  }
+
+  if (gameId) {
+    sessionQuery = sessionQuery.eq("game_id", gameId);
   }
 
   const [sessionsResult, playersResult] = await Promise.all([

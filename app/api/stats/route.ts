@@ -8,7 +8,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const periodRaw = searchParams.get("period") ?? "all";
     const period = periodFilterSchema.parse(periodRaw);
-    const stats = await getStats(period);
+    const gameId = searchParams.get("game_id") ?? null;
+    const stats = await getStats(period, gameId);
     return NextResponse.json(stats);
   } catch (error) {
     if (error instanceof ZodError) {
