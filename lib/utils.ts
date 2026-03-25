@@ -29,7 +29,7 @@ export function getDayOfWeek(date: Date): number {
  * Returns number of consecutive wins at the start of the list.
  */
 export function calculateCurrentStreak(
-  sessions: Array<{ winner_id: string }>,
+  sessions: Array<{ winner_id: string | null }>,
   playerId: string
 ): number {
   let streak = 0;
@@ -48,7 +48,7 @@ export function calculateCurrentStreak(
  * sessions must be sorted by played_at ASC (oldest first).
  */
 export function calculateLongestStreak(
-  sessions: Array<{ winner_id: string }>,
+  sessions: Array<{ winner_id: string | null }>,
   playerId: string
 ): number {
   let longest = 0;
