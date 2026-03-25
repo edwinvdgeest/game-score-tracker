@@ -36,7 +36,8 @@ function computeWinner(
   if (parsed.length === 0) return null;
   const max = Math.max(...parsed.map((s) => s.score));
   const tops = parsed.filter((s) => s.score === max);
-  return tops.length === 1 ? tops[0].player : null;
+  const solo = tops[0];
+  return tops.length === 1 && solo ? solo.player : null;
 }
 
 export function SessionForm({ games, players }: SessionFormProps) {
