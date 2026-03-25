@@ -7,6 +7,7 @@ import { Leaderboard } from "./leaderboard";
 import { StreakCards } from "./streak-cards";
 import { TopGamesChart } from "./top-games-chart";
 import { RecentGames } from "./recent-games";
+import { DayOfWeekChart } from "./day-of-week-chart";
 
 interface DashboardClientProps {
   initialStats: StatsResponse;
@@ -48,6 +49,7 @@ export function DashboardClient({ initialStats }: DashboardClientProps) {
       <Leaderboard leaderboard={stats.leaderboard} />
       <StreakCards leaderboard={stats.leaderboard} />
       <TopGamesChart topGames={stats.top_games} />
+      <DayOfWeekChart />
       <RecentGames sessions={stats.recent_sessions} />
     </div>
   );

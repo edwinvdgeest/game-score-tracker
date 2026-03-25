@@ -325,6 +325,53 @@ export async function deleteSession(id: string): Promise<void> {
   if (error) throw new Error(`Failed to delete session: ${error.message}`);
 }
 
+/** Day of week stats */
+export type DayOfWeekStat = {
+  day: number; // 0=Sunday, 1=Monday, ..., 6=Saturday
+  dayLabel: string;
+  sessions: number;
+  winsByPlayer: Record<string, number>; // playerId → wins
+};
+
+const DAY_LABELS = ["Zo", "Ma", "Di", "Wo", "Do", "Vr", "Za"];
+
+/** Get how many sessions per day of week, and wins per player per day */
+export async function getDayOfWeekStats(): Promise<{
+  stats: DayOfWeekStat[];
+  players: Player[];
+}> {
+  const supabase = createServerClient();
+  const [sessionsResult, playersResult] = await Promise.all([
+    supabase.from("game_sessions").select("day_of_week, winner_id"),
+    supabase.from("players").select("*").eq("is_active", true),
+  ]);
+
+  if (sessionsResult.error) throw new Error(sessionsResult.error.message);
+  if (playersResult.error) throw new Error(playersResult.error.message);
+
+  const sessions = sessionsResult.data ?? [];
+  const players = (playersResult.data ?? []) as Player[];
+
+  // Build stats for each day (0-6)
+  const stats: DayOfWeekStat[] = Array.from({ length: 7 }, (_, i) => ({
+    day: i,
+    dayLabel: DAY_LABELS[i] ?? "",
+    sessions: 0,
+    winsByPlayer: {},
+  }));
+
+  for (const session of sessions) {
+    const day = session.day_of_week as number;
+    const winnerId = session.winner_id as string;
+    const dayStat = stats[day];
+    if (!dayStat) continue;
+    dayStat.sessions++;
+    dayStat.winsByPlayer[winnerId] = (dayStat.winsByPlayer[winnerId] ?? 0) + 1;
+  }
+
+  return { stats, players };
+}
+
 /** Starter advantage stat per game */
 export type StarterStat = {
   totalWithStarter: number;
