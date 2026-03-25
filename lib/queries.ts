@@ -93,7 +93,7 @@ export async function createSession(input: CreateSessionInput): Promise<void> {
       game_id: input.game_id,
       played_at: playedAt,
       day_of_week: dayOfWeek,
-      winner_id: input.winner_id,
+      winner_id: input.winner_id ?? null,
       starter_id: input.starter_id ?? null,
       notes: input.notes ?? null,
     })
@@ -167,7 +167,7 @@ export type GameDetailStats = {
   recentSessions: Array<{
     id: string;
     played_at: string;
-    winner: Player;
+    winner: Player | null;
   }>;
 };
 
@@ -207,7 +207,7 @@ export async function getGameStats(gameId: string): Promise<GameDetailStats | nu
   const recentSessions = sessions.slice(0, 10).map((s) => ({
     id: s.id as string,
     played_at: s.played_at as string,
-    winner: s.winner as unknown as Player,
+    winner: (s.winner as unknown as Player) ?? null,
   }));
 
   return { game, totalSessions, lastPlayedAt, winnerStats, recentSessions };
