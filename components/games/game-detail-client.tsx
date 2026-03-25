@@ -12,15 +12,16 @@ import {
 } from "recharts";
 import { EditGameForm } from "@/components/games/edit-game-form";
 import { formatDate } from "@/lib/utils";
-import type { GameDetailStats } from "@/lib/queries";
+import type { GameDetailStats, StarterStat } from "@/lib/queries";
 
 const COLORS = ["#ff6b6b", "#4ecdc4", "#a29bfe", "#ffe66d"];
 
 interface GameDetailClientProps {
   stats: GameDetailStats;
+  starterStat: StarterStat | null;
 }
 
-export function GameDetailClient({ stats }: GameDetailClientProps) {
+export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) {
   const [editing, setEditing] = useState(false);
 
   const { game, totalSessions, lastPlayedAt, winnerStats, recentSessions } = stats;
@@ -85,6 +86,26 @@ export function GameDetailClient({ stats }: GameDetailClientProps) {
           </div>
         </div>
       </div>
+
+      {/* Beginner-voordeel */}
+      {starterStat && (
+        <div
+          className="rounded-2xl p-4 flex items-center gap-3"
+          style={{ backgroundColor: "var(--color-warm-gray)" }}
+        >
+          <span className="text-3xl">🎯</span>
+          <div>
+            <div className="font-extrabold text-sm">Beginnersvoordeel</div>
+            <div className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              De beginner wint{" "}
+              <span className="font-black" style={{ color: "var(--color-coral)" }}>
+                {starterStat.starterWinPercentage}%
+              </span>{" "}
+              van de potjes ({starterStat.starterWins}/{starterStat.totalWithStarter})
+            </div>
+          </div>
+        </div>
+      )}
 
       {totalSessions > 0 && (
         <>

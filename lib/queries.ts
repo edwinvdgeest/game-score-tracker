@@ -325,6 +325,34 @@ export async function deleteSession(id: string): Promise<void> {
   if (error) throw new Error(`Failed to delete session: ${error.message}`);
 }
 
+/** Starter advantage stat per game */
+export type StarterStat = {
+  totalWithStarter: number;
+  starterWins: number;
+  starterWinPercentage: number;
+};
+
+/** Calculate starter advantage for a specific game */
+export async function getStarterStats(gameId: string): Promise<StarterStat | null> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("game_sessions")
+    .select("winner_id, starter_id")
+    .eq("game_id", gameId)
+    .not("starter_id", "is", null);
+
+  if (error) throw new Error(error.message);
+  const sessions = data ?? [];
+  if (sessions.length < 3) return null; // Too few data points
+
+  const starterWins = sessions.filter((s) => s.winner_id === s.starter_id).length;
+  return {
+    totalWithStarter: sessions.length,
+    starterWins,
+    starterWinPercentage: Math.round((starterWins / sessions.length) * 100),
+  };
+}
+
 /** Get stats (leaderboard, streaks, top games, recent sessions) for a period */
 export async function getStats(period: PeriodFilter): Promise<StatsResponse> {
   const supabase = createServerClient();

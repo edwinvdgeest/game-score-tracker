@@ -1,4 +1,4 @@
-import { getGameStats } from "@/lib/queries";
+import { getGameStats, getStarterStats } from "@/lib/queries";
 import { GameDetailClient } from "@/components/games/game-detail-client";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -11,7 +11,10 @@ interface GameDetailPageProps {
 
 export default async function GameDetailPage({ params }: GameDetailPageProps) {
   const { id } = await params;
-  const stats = await getGameStats(id);
+  const [stats, starterStat] = await Promise.all([
+    getGameStats(id),
+    getStarterStats(id),
+  ]);
 
   if (!stats) notFound();
 
@@ -24,7 +27,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       >
         ← Terug naar spellen
       </Link>
-      <GameDetailClient stats={stats} />
+      <GameDetailClient stats={stats} starterStat={starterStat} />
     </div>
   );
 }
