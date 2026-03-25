@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "Loggen", emoji: "🎮" },
+  { href: "/suggest", label: "Spelen?", emoji: "🎲" },
   { href: "/dashboard", label: "Scores", emoji: "🏆" },
-  { href: "/games", label: "Spellen", emoji: "🎲" },
+  { href: "/games", label: "Spellen", emoji: "📋" },
 ];
 
 export function Nav() {

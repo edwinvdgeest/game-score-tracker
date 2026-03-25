@@ -124,6 +124,133 @@ export async function createGame(input: CreateGameInput): Promise<Game> {
   return data as Game;
 }
 
+/** Fetch a single game by id */
+export async function getGameById(id: string): Promise<Game | null> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("games")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) return null;
+  return data as Game;
+}
+
+/** Update an existing game */
+export async function updateGame(
+  id: string,
+  input: Partial<CreateGameInput>
+): Promise<Game> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("games")
+    .update(input)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to update game: ${error.message}`);
+  if (!data) throw new Error("No game returned after update");
+  return data as Game;
+}
+
+export type GameDetailStats = {
+  game: Game;
+  totalSessions: number;
+  lastPlayedAt: string | null;
+  winnerStats: Array<{ player: Player; wins: number; winPercentage: number }>;
+  recentSessions: Array<{
+    id: string;
+    played_at: string;
+    winner: Player;
+  }>;
+};
+
+/** Get detailed stats for a single game */
+export async function getGameStats(gameId: string): Promise<GameDetailStats | null> {
+  const supabase = createServerClient();
+
+  const [gameResult, sessionsResult, playersResult] = await Promise.all([
+    supabase.from("games").select("*").eq("id", gameId).single(),
+    supabase
+      .from("game_sessions")
+      .select("id, played_at, winner_id, winner:players!winner_id(*)")
+      .eq("game_id", gameId)
+      .order("played_at", { ascending: false }),
+    supabase.from("players").select("*").eq("is_active", true),
+  ]);
+
+  if (gameResult.error || !gameResult.data) return null;
+  if (sessionsResult.error) throw new Error(sessionsResult.error.message);
+  if (playersResult.error) throw new Error(playersResult.error.message);
+
+  const game = gameResult.data as Game;
+  const sessions = sessionsResult.data ?? [];
+  const players = (playersResult.data ?? []) as Player[];
+  const totalSessions = sessions.length;
+  const lastPlayedAt = sessions[0]?.played_at ?? null;
+
+  const winnerStats = players.map((player) => {
+    const wins = sessions.filter((s) => s.winner_id === player.id).length;
+    return {
+      player,
+      wins,
+      winPercentage: totalSessions > 0 ? Math.round((wins / totalSessions) * 100) : 0,
+    };
+  }).sort((a, b) => b.wins - a.wins);
+
+  const recentSessions = sessions.slice(0, 10).map((s) => ({
+    id: s.id as string,
+    played_at: s.played_at as string,
+    winner: s.winner as unknown as Player,
+  }));
+
+  return { game, totalSessions, lastPlayedAt, winnerStats, recentSessions };
+}
+
+/** Get a game suggestion based on time since last played and variety */
+export async function getGameSuggestion(): Promise<Game[]> {
+  const supabase = createServerClient();
+
+  const [gamesResult, sessionsResult] = await Promise.all([
+    supabase.from("games").select("*"),
+    supabase
+      .from("game_sessions")
+      .select("game_id, played_at")
+      .order("played_at", { ascending: false }),
+  ]);
+
+  if (gamesResult.error) throw new Error(gamesResult.error.message);
+
+  const games = (gamesResult.data ?? []) as Game[];
+  const sessions = sessionsResult.data ?? [];
+
+  // Build map: game_id → last played date
+  const lastPlayed = new Map<string, string>();
+  for (const s of sessions) {
+    if (!lastPlayed.has(s.game_id as string)) {
+      lastPlayed.set(s.game_id as string, s.played_at as string);
+    }
+  }
+
+  const now = Date.now();
+
+  // Score: higher = more likely to be suggested
+  // Games never played get highest score; then by days since last played
+  const scored = games.map((g) => {
+    const last = lastPlayed.get(g.id);
+    const daysSince = last
+      ? (now - new Date(last).getTime()) / (1000 * 60 * 60 * 24)
+      : 9999;
+    return { game: g, daysSince };
+  });
+
+  // Sort by days since played desc, pick top 5 as candidates
+  scored.sort((a, b) => b.daysSince - a.daysSince);
+  const candidates = scored.slice(0, Math.min(5, scored.length));
+
+  return candidates.map((c) => c.game);
+}
+
 /** Get stats (leaderboard, streaks, top games, recent sessions) for a period */
 export async function getStats(period: PeriodFilter): Promise<StatsResponse> {
   const supabase = createServerClient();

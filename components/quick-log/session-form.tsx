@@ -75,7 +75,7 @@ export function SessionForm({ games, players }: SessionFormProps) {
       const scoresArray = activePlayers.map((p) => ({
         player_id: p.id,
         score: scoreValues[p.id]?.trim()
-          ? parseInt(scoreValues[p.id], 10)
+          ? parseInt(scoreValues[p.id] ?? "", 10)
           : null,
       }));
 

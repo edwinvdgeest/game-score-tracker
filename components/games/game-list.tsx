@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Game } from "@/lib/schemas";
 
 const categoryLabel: Record<string, string> = {
@@ -27,9 +28,10 @@ export function GameList({ games }: GameListProps) {
   return (
     <div className="space-y-2">
       {games.map((game) => (
-        <div
+        <Link
           key={game.id}
-          className="flex items-center gap-3 p-3 bg-white rounded-2xl border"
+          href={`/games/${game.id}`}
+          className="flex items-center gap-3 p-3 bg-white rounded-2xl border transition-colors hover:border-[var(--color-coral)] active:scale-[0.98]"
         >
           <span className="text-2xl">{game.emoji}</span>
           <div className="flex-1">
@@ -42,7 +44,8 @@ export function GameList({ games }: GameListProps) {
               {game.min_players}–{game.max_players} spelers
             </div>
           </div>
-        </div>
+          <span style={{ color: "var(--muted-foreground)" }} className="text-sm">›</span>
+        </Link>
       ))}
     </div>
   );
