@@ -45,16 +45,18 @@ export function GameSuggester({ initialCandidates }: GameSuggesterProps) {
     let count = 0;
     const totalTicks = 24;
     const interval = setInterval(() => {
-      const random = pool[Math.floor(Math.random() * pool.length)];
-      setDisplayGame(random);
+      const random = pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
+      if (random) setDisplayGame(random);
       count++;
 
       if (count >= totalTicks) {
         clearInterval(interval);
         // Kies winner
-        const winner = pool[Math.floor(Math.random() * pool.length)];
-        setDisplayGame(winner);
-        setResult(winner);
+        const winner = pool[Math.floor(Math.random() * pool.length)] ?? pool[0];
+        if (winner) {
+          setDisplayGame(winner);
+          setResult(winner);
+        }
         setPhase("done");
         setSpinning(false);
       }

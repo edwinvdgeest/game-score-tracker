@@ -99,8 +99,8 @@ export function GameDetailClient({ stats }: GameDetailClientProps) {
                   <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700 }} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip
-                    formatter={(value: number, name: string) =>
-                      name === "wins" ? [`${value} keer`, "Gewonnen"] : value
+                    formatter={(value) =>
+                      [`${value} keer`, "Gewonnen"]
                     }
                   />
                   <Bar dataKey="wins" radius={[6, 6, 0, 0]}>
