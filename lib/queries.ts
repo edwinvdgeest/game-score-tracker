@@ -103,7 +103,7 @@ export async function createSession(input: CreateSessionInput): Promise<void> {
       input.scores.map((s) => ({
         session_id: (session as { id: string }).id,
         player_id: s.player_id,
-        score: s.score,
+        score: s.score ?? null,
       }))
     );
     if (scoresError)
