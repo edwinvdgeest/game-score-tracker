@@ -177,16 +177,27 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
                   className="flex items-center justify-between py-2 border-b last:border-0"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">{session.winner.emoji}</span>
-                    <div>
-                      <div className="font-bold text-sm">{session.winner.name}</div>
+                    {session.winner ? (
+                      <>
+                        <span className="text-lg">{session.winner.emoji}</span>
+                        <div>
+                          <div className="font-bold text-sm">{session.winner.name}</div>
+                          <div
+                            className="text-xs font-semibold"
+                            style={{ color: "var(--muted-foreground)" }}
+                          >
+                            gewonnen
+                          </div>
+                        </div>
+                      </>
+                    ) : (
                       <div
-                        className="text-xs font-semibold"
+                        className="font-bold text-sm"
                         style={{ color: "var(--muted-foreground)" }}
                       >
-                        gewonnen
+                        🤝 Gelijkspel
                       </div>
-                    </div>
+                    )}
                   </div>
                   <div
                     className="text-xs font-bold"

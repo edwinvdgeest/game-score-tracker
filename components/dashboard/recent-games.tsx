@@ -44,8 +44,19 @@ export function RecentGames({ sessions }: RecentGamesProps) {
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-lg">{session.winner.emoji}</span>
-              <span className="text-xs font-black">{session.winner.name}</span>
+              {session.winner ? (
+                <>
+                  <span className="text-lg">{session.winner.emoji}</span>
+                  <span className="text-xs font-black">{session.winner.name}</span>
+                </>
+              ) : (
+                <span
+                  className="text-xs font-black"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  🤝 Gelijkspel
+                </span>
+              )}
             </div>
           </div>
         ))}
