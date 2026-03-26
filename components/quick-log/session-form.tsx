@@ -50,7 +50,7 @@ function computeWinner(
   return tops.length === 1 && solo ? solo.player : null;
 }
 
-export function SessionForm({ games, players }: SessionFormProps) {
+export function SessionForm({ games, players: initialPlayers }: SessionFormProps) {
   const [step, setStep] = useState<Step>("game");
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [selectedStarter, setSelectedStarter] = useState<Player | null>(null);
@@ -62,18 +62,54 @@ export function SessionForm({ games, players }: SessionFormProps) {
   // Swipe state
   const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
   const touchStartX = useRef<number | null>(null);
+  // Guest creation state
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestSaving, setGuestSaving] = useState(false);
+  // Extra guests created this session
+  const [extraPlayers, setExtraPlayers] = useState<Player[]>([]);
 
   const { marathon } = useActiveMarathon();
 
-  // Default: everyone except Minou
+  const players = useMemo(
+    () => [...initialPlayers, ...extraPlayers],
+    [initialPlayers, extraPlayers]
+  );
+
+  // Default: everyone except Minou, guests excluded by default
   const [activePlayerIds, setActivePlayerIds] = useState<Set<string>>(
-    () => new Set(players.filter((p) => p.name !== "Minou").map((p) => p.id))
+    () => new Set(initialPlayers.filter((p) => p.name !== "Minou" && !p.is_guest).map((p) => p.id))
   );
 
   const activePlayers = useMemo(
     () => players.filter((p) => activePlayerIds.has(p.id)),
     [players, activePlayerIds]
   );
+
+  const handleAddGuest = useCallback(async () => {
+    const name = guestName.trim();
+    if (!name) return;
+    setGuestSaving(true);
+    try {
+      const res = await fetch("/api/players", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error("Aanmaken mislukt");
+      const newPlayer = (await res.json()) as Player;
+      setExtraPlayers((prev) => [...prev, newPlayer]);
+      setActivePlayerIds((prev) => new Set([...prev, newPlayer.id]));
+      void mutate("/api/players");
+      setGuestDialogOpen(false);
+      setGuestName("");
+      toast.success(`👤 ${newPlayer.name} toegevoegd!`);
+    } catch {
+      toast.error("Kon gast niet aanmaken. Probeer opnieuw.");
+    } finally {
+      setGuestSaving(false);
+    }
+  }, [guestName]);
 
   const togglePlayer = useCallback((playerId: string) => {
     setActivePlayerIds((prev) => {
@@ -333,23 +369,92 @@ export function SessionForm({ games, players }: SessionFormProps) {
             <div className="flex gap-2 flex-wrap">
               {players.map((player) => {
                 const active = activePlayerIds.has(player.id);
+                const isGuest = player.is_guest;
                 return (
                   <button
                     key={player.id}
                     onClick={() => togglePlayer(player.id)}
                     className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 font-bold text-sm transition-all cursor-pointer",
-                      active
+                      active && !isGuest
                         ? "border-[var(--color-coral)] bg-[color-mix(in_srgb,var(--color-coral)_10%,transparent)]"
+                        : active && isGuest
+                        ? "border-dashed border-[var(--color-coral)] bg-[color-mix(in_srgb,var(--color-coral)_10%,transparent)]"
                         : "border-[var(--border)] opacity-50"
                     )}
+                    style={isGuest ? { borderStyle: "dashed" } : undefined}
                   >
                     <span>{player.emoji}</span>
                     <span>{player.name}</span>
                   </button>
                 );
               })}
+              <button
+                onClick={() => setGuestDialogOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 font-bold text-sm transition-all cursor-pointer"
+                style={{
+                  borderStyle: "dashed",
+                  borderColor: "var(--border)",
+                  color: "var(--muted-foreground)",
+                }}
+              >
+                <span>+</span>
+                <span>Gast</span>
+              </button>
             </div>
+
+            {/* Guest name dialog */}
+            {guestDialogOpen && (
+              <div
+                className="fixed inset-0 z-50 flex items-end justify-center p-4"
+                onClick={(e) => { if (e.target === e.currentTarget) { setGuestDialogOpen(false); setGuestName(""); } }}
+              >
+                <div className="absolute inset-0 bg-black/50" />
+                <div
+                  className="relative w-full max-w-md rounded-3xl p-6 space-y-4 shadow-2xl"
+                  style={{ backgroundColor: "var(--card)" }}
+                >
+                  <div className="text-center">
+                    <span className="text-4xl">👤</span>
+                    <h2 className="text-xl font-black mt-2" style={{ color: "var(--foreground)" }}>
+                      Gast toevoegen
+                    </h2>
+                  </div>
+                  <input
+                    type="text"
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleAddGuest(); }}
+                    autoFocus
+                    className="w-full px-4 py-3 rounded-2xl border-2 font-bold text-base outline-none transition-colors focus:border-[var(--color-coral)]"
+                    style={{
+                      borderColor: "var(--border)",
+                      backgroundColor: "var(--background)",
+                      color: "var(--foreground)",
+                    }}
+                    placeholder="Naam van de gast"
+                    maxLength={100}
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { setGuestDialogOpen(false); setGuestName(""); }}
+                      className="flex-1 py-3 rounded-2xl border-2 font-bold text-sm"
+                      style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
+                    >
+                      Annuleren
+                    </button>
+                    <button
+                      onClick={() => void handleAddGuest()}
+                      disabled={!guestName.trim() || guestSaving}
+                      className="flex-1 py-3 rounded-2xl font-black text-white text-sm disabled:opacity-50"
+                      style={{ backgroundColor: "var(--color-coral)" }}
+                    >
+                      {guestSaving ? "Toevoegen…" : "👤 Toevoegen"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <GameGrid

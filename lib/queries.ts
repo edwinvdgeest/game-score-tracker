@@ -24,7 +24,7 @@ import type {
   CreateMarathonInput,
 } from "@/lib/schemas";
 
-/** Fetch all active players */
+/** Fetch all active players (including guests, for session forms) */
 export async function getPlayers(): Promise<Player[]> {
   const supabase = createServerClient();
   const { data, error } = await supabase
@@ -34,6 +34,60 @@ export async function getPlayers(): Promise<Player[]> {
     .order("name");
   if (error) throw new Error(`Failed to fetch players: ${error.message}`);
   return (data ?? []) as Player[];
+}
+
+/** Create a guest player */
+export async function createGuestPlayer(name: string): Promise<Player> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("players")
+    .insert({ name, emoji: "👤", is_guest: true })
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to create guest player: ${error.message}`);
+  if (!data) throw new Error("No player returned after insert");
+  return data as Player;
+}
+
+/** Fetch all guest players with session counts */
+export async function getGuestPlayersWithCounts(): Promise<
+  Array<{ player: Player; sessionCount: number }>
+> {
+  const supabase = createServerClient();
+  const [playersResult, sessionsResult] = await Promise.all([
+    supabase.from("players").select("*").eq("is_guest", true).order("name"),
+    supabase.from("session_players").select("player_id"),
+  ]);
+  if (playersResult.error) throw new Error(playersResult.error.message);
+  const players = (playersResult.data ?? []) as Player[];
+  const sessions = sessionsResult.data ?? [];
+
+  const countMap = new Map<string, number>();
+  for (const sp of sessions) {
+    const pid = sp.player_id as string;
+    countMap.set(pid, (countMap.get(pid) ?? 0) + 1);
+  }
+
+  return players.map((player) => ({
+    player,
+    sessionCount: countMap.get(player.id) ?? 0,
+  }));
+}
+
+/** Delete a guest player (and all their session data) */
+export async function deleteGuestPlayer(id: string): Promise<void> {
+  const supabase = createServerClient();
+  // First verify it's actually a guest
+  const { data } = await supabase
+    .from("players")
+    .select("is_guest")
+    .eq("id", id)
+    .single();
+  if (!data || !(data as { is_guest: boolean }).is_guest) {
+    throw new Error("Can only delete guest players");
+  }
+  const { error } = await supabase.from("players").delete().eq("id", id);
+  if (error) throw new Error(`Failed to delete guest player: ${error.message}`);
 }
 
 /** Fetch all games ordered alphabetically */
@@ -438,7 +492,7 @@ export async function getDayOfWeekStats(): Promise<{
   const supabase = createServerClient();
   const [sessionsResult, playersResult] = await Promise.all([
     supabase.from("game_sessions").select("day_of_week, winner_id"),
-    supabase.from("players").select("*").eq("is_active", true),
+    supabase.from("players").select("*").eq("is_active", true).eq("is_guest", false),
   ]);
 
   if (sessionsResult.error) throw new Error(sessionsResult.error.message);
@@ -477,7 +531,7 @@ export async function getPlayerAchievements(): Promise<PlayerAchievements[]> {
       .select("id, played_at, game_id, winner_id")
       .order("played_at", { ascending: true }),
     supabase.from("session_players").select("session_id, player_id"),
-    supabase.from("players").select("*").eq("is_active", true),
+    supabase.from("players").select("*").eq("is_active", true).eq("is_guest", false),
   ]);
 
   if (sessionsResult.error) throw new Error(sessionsResult.error.message);
@@ -571,7 +625,7 @@ export async function getStats(
 
   const [sessionsResult, playersResult] = await Promise.all([
     sessionQuery,
-    supabase.from("players").select("*").eq("is_active", true),
+    supabase.from("players").select("*").eq("is_active", true).eq("is_guest", false),
   ]);
 
   if (sessionsResult.error)

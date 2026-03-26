@@ -16,6 +16,7 @@ export const playerSchema = z.object({
   name: z.string(),
   emoji: z.string(),
   is_active: z.boolean(),
+  is_guest: z.boolean().optional().default(false),
   created_at: z.string(),
 });
 export type Player = z.infer<typeof playerSchema>;
