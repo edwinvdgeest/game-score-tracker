@@ -10,7 +10,7 @@ export function StreakCards({ leaderboard }: StreakCardsProps) {
       <h2 className="text-lg font-extrabold mb-3">🔥 Streaks</h2>
       <div className="grid grid-cols-2 gap-3">
         {leaderboard.map((stats) => (
-          <div key={stats.player.id} className="bg-white rounded-2xl border p-3">
+          <div key={stats.player.id} className="bg-[var(--card)] rounded-2xl border p-3">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xl">{stats.player.emoji}</span>
               <span className="font-extrabold text-sm">{stats.player.name}</span>

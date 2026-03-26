@@ -50,7 +50,7 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
         </div>
         <button
           onClick={() => setEditing(!editing)}
-          className="px-3 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-gray-50 flex items-center gap-1"
+          className="px-3 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-[var(--muted)] flex items-center gap-1"
         >
           ✏️ Bewerken
         </button>
@@ -110,7 +110,7 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
       {totalSessions > 0 && (
         <>
           {/* Win-verdeling */}
-          <div className="bg-white rounded-3xl p-4 border space-y-3">
+          <div className="bg-[var(--card)] rounded-3xl p-4 border space-y-3">
             <h2 className="font-extrabold text-base">Wie wint het vaakst? 🏆</h2>
 
             {/* Bar chart */}
@@ -168,7 +168,7 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
           </div>
 
           {/* Recente sessies */}
-          <div className="bg-white rounded-3xl p-4 border space-y-3">
+          <div className="bg-[var(--card)] rounded-3xl p-4 border space-y-3">
             <h2 className="font-extrabold text-base">Recente potjes 📅</h2>
             <div className="space-y-2">
               {recentSessions.map((session) => (

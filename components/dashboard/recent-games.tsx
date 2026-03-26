@@ -29,7 +29,7 @@ export function RecentGames({ sessions }: RecentGamesProps) {
         {sessions.map((session) => (
           <div
             key={session.id}
-            className="flex items-center gap-3 p-3 bg-white rounded-2xl border"
+            className="flex items-center gap-3 p-3 bg-[var(--card)] rounded-2xl border"
           >
             <span className="text-xl">{session.game.emoji}</span>
             <div className="flex-1 min-w-0">

@@ -3,6 +3,8 @@ import { Nunito } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/layout/nav";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/layout/theme-provider";
+import { OfflineBanner } from "@/components/layout/offline-banner";
 
 const nunito = Nunito({
   subsets: ["latin"],
@@ -38,11 +40,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="nl" className={nunito.variable}>
+    <html lang="nl" className={nunito.variable} suppressHydrationWarning>
       <body className="min-h-screen antialiased pb-20" style={{ backgroundColor: "var(--background)" }}>
-        <main className="max-w-md mx-auto px-4 pt-6">{children}</main>
-        <Nav />
-        <Toaster richColors position="top-center" />
+        <ThemeProvider>
+          <OfflineBanner />
+          <main className="max-w-md mx-auto px-4 pt-6">{children}</main>
+          <Nav />
+          <Toaster richColors position="top-center" />
+        </ThemeProvider>
       </body>
     </html>
   );

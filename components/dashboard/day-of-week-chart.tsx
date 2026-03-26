@@ -29,7 +29,7 @@ export function DayOfWeekChart() {
 
   if (!data) {
     return (
-      <div className="bg-white rounded-3xl p-4 border">
+      <div className="rounded-3xl p-4 border" style={{ backgroundColor: "var(--card)" }}>
         <h2 className="font-extrabold text-base mb-3">📅 Speeldag analyse</h2>
         <div className="h-32 flex items-center justify-center text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>
           Laden...
@@ -62,7 +62,7 @@ export function DayOfWeekChart() {
   });
 
   return (
-    <div className="bg-white rounded-3xl p-4 border space-y-4">
+    <div className="rounded-3xl p-4 border space-y-4" style={{ backgroundColor: "var(--card)" }}>
       <h2 className="font-extrabold text-base">📅 Speeldag analyse</h2>
 
       {/* Bar chart */}

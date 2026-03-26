@@ -41,7 +41,7 @@ export function Leaderboard({ leaderboard }: LeaderboardProps) {
         {leaderboard.map((stats, index) => (
           <div
             key={stats.player.id}
-            className="flex items-center gap-3 p-3 rounded-2xl bg-white border"
+            className="flex items-center gap-3 p-3 rounded-2xl bg-[var(--card)] border"
             style={{
               borderColor:
                 index === 0 ? "var(--color-warm-yellow)" : "var(--border)",

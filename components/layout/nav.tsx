@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { DarkModeToggle } from "./dark-mode-toggle";
 
 const navItems = [
   { href: "/", label: "Loggen", emoji: "🎮" },
@@ -17,8 +18,11 @@ export function Nav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t z-50">
-      <div className="max-w-md mx-auto flex">
+    <nav
+      className="fixed bottom-0 left-0 right-0 border-t z-50"
+      style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
+    >
+      <div className="max-w-md mx-auto flex items-center">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -36,6 +40,9 @@ export function Nav() {
             </Link>
           );
         })}
+        <div className="pr-2">
+          <DarkModeToggle />
+        </div>
       </div>
     </nav>
   );

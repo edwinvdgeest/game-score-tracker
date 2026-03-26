@@ -27,7 +27,7 @@ export function StarterPicker({ players, onSelect, onSkip }: StarterPickerProps)
             onClick={() => onSelect(player)}
             className={cn(
               "flex items-center gap-3 p-4 rounded-2xl border-2 font-bold text-left cursor-pointer transition-all",
-              "border-[var(--border)] bg-white hover:border-[var(--color-coral)] hover:bg-[color-mix(in_srgb,var(--color-coral)_5%,transparent)]"
+              "border-[var(--border)] bg-[var(--card)] hover:border-[var(--color-coral)] hover:bg-[color-mix(in_srgb,var(--color-coral)_5%,transparent)]"
             )}
           >
             <span className="text-2xl">{player.emoji}</span>
@@ -37,7 +37,7 @@ export function StarterPicker({ players, onSelect, onSkip }: StarterPickerProps)
 
         <button
           onClick={onSkip}
-          className="py-3 rounded-2xl border-2 font-bold text-sm cursor-pointer hover:bg-gray-50 transition-colors"
+          className="py-3 rounded-2xl border-2 font-bold text-sm cursor-pointer hover:bg-[var(--muted)] transition-colors"
           style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
         >
           Overslaan →

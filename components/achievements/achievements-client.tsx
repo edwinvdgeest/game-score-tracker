@@ -83,7 +83,7 @@ export function AchievementsClient({ playerAchievements }: AchievementsClientPro
                   .map((achievement) => (
                     <div
                       key={achievement.id}
-                      className="flex items-center gap-3 p-3 bg-white rounded-2xl border"
+                      className="flex items-center gap-3 p-3 bg-[var(--card)] rounded-2xl border"
                     >
                       <span className="text-3xl">{achievement.emoji}</span>
                       <div className="flex-1">

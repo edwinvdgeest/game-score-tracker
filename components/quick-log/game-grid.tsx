@@ -61,7 +61,7 @@ export function GameGrid({ games, selectedGameId, onSelect }: GameGridProps) {
               "min-h-[80px] text-center cursor-pointer",
               selectedGameId === game.id
                 ? "border-[var(--color-coral)] bg-[color-mix(in_srgb,var(--color-coral)_10%,transparent)]"
-                : "border-[var(--border)] bg-white hover:border-[color-mix(in_srgb,var(--color-coral)_50%,transparent)]"
+                : "border-[var(--border)] bg-[var(--card)] hover:border-[color-mix(in_srgb,var(--color-coral)_50%,transparent)]"
             )}
           >
             <span className="text-2xl mb-1">{game.emoji}</span>

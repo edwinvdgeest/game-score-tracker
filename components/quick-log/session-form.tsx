@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { mutate } from "swr";
 import type { Game, Player } from "@/lib/schemas";
 import { GameGrid } from "./game-grid";
 import { StarterPicker } from "./starter-picker";
@@ -25,6 +26,13 @@ const PROGRESS_STEP: Record<Exclude<Step, "done">, number> = {
   starter: 1,
   scores: 2,
 };
+
+/** Trigg haptic feedback als de browser het ondersteunt */
+function vibrate(pattern: number | number[]) {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    navigator.vibrate(pattern);
+  }
+}
 
 /** Returns the winning player (highest score), or null on tie / no scores entered */
 function computeWinner(
@@ -50,6 +58,9 @@ export function SessionForm({ games, players }: SessionFormProps) {
   const [saving, setSaving] = useState(false);
   // undefined = not yet saved; null = saved with tie; Player = saved with winner
   const [winner, setWinner] = useState<Player | null | undefined>(undefined);
+  // Swipe state
+  const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
+  const touchStartX = useRef<number | null>(null);
 
   // Default: everyone except Minou
   const [activePlayerIds, setActivePlayerIds] = useState<Set<string>>(
@@ -118,6 +129,19 @@ export function SessionForm({ games, players }: SessionFormProps) {
 
         if (!response.ok) throw new Error("Opslaan mislukt");
 
+        const json = (await response.json()) as { queued?: boolean };
+        if (json.queued) {
+          toast.info("📵 Offline opgeslagen — wordt gesynchroniseerd zodra je online bent.");
+        } else {
+          // Invalidate SWR caches so dashboard/history update instantly
+          void mutate((key) => typeof key === "string" && key.startsWith("/api/stats"));
+          void mutate("/api/sessions");
+        }
+
+        // Haptic: kort patroon bij opslaan, langer bij confetti-moment
+        vibrate([50]);
+        setTimeout(() => vibrate([100, 50, 100]), 200);
+
         setShowConfetti(true);
         setStep("done");
 
@@ -152,6 +176,39 @@ export function SessionForm({ games, players }: SessionFormProps) {
       setSelectedStarter(null);
     }
   }, [step]);
+
+  // Swipe-to-navigate: swipe left = vooruit (als mogelijk), swipe right = terug
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null;
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (touchStartX.current === null) return;
+      const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX.current;
+      touchStartX.current = null;
+      const MIN_SWIPE = 60;
+      if (Math.abs(dx) < MIN_SWIPE) return;
+
+      if (dx < 0) {
+        // Swipe left = vooruit — alleen als een game geselecteerd is
+        if (step === "game" && selectedGame) {
+          setSlideDir("left");
+          setTimeout(() => { setSlideDir(null); setStep("starter"); }, 200);
+        } else if (step === "starter") {
+          setSlideDir("left");
+          setTimeout(() => { setSlideDir(null); setStep("scores"); }, 200);
+        }
+      } else {
+        // Swipe right = terug
+        if (step === "starter" || step === "scores") {
+          setSlideDir("right");
+          setTimeout(() => { setSlideDir(null); handleBack(); }, 200);
+        }
+      }
+    },
+    [step, selectedGame, handleBack]
+  );
 
   if (step === "done" && selectedGame) {
     return (
@@ -194,7 +251,16 @@ export function SessionForm({ games, players }: SessionFormProps) {
   const progressStep = step !== "done" ? PROGRESS_STEP[step] : 3;
 
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6 overflow-hidden"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        transform: slideDir === "left" ? "translateX(-8px)" : slideDir === "right" ? "translateX(8px)" : "translateX(0)",
+        opacity: slideDir ? 0.7 : 1,
+        transition: "transform 0.2s ease, opacity 0.2s ease",
+      }}
+    >
       {/* Progress indicator — 3 steps */}
       <div className="flex gap-2">
         {[0, 1, 2].map((i) => (
@@ -230,7 +296,7 @@ export function SessionForm({ games, players }: SessionFormProps) {
                       "flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 font-bold text-sm transition-all cursor-pointer",
                       active
                         ? "border-[var(--color-coral)] bg-[color-mix(in_srgb,var(--color-coral)_10%,transparent)]"
-                        : "border-[var(--border)] bg-white opacity-50"
+                        : "border-[var(--border)] opacity-50"
                     )}
                   >
                     <span>{player.emoji}</span>

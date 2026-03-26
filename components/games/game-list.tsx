@@ -116,7 +116,7 @@ export function GameList({ games: initialGames }: GameListProps) {
                 "px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer",
                 sort === value
                   ? "text-white"
-                  : "bg-white border font-semibold hover:border-[var(--color-coral)]"
+                  : "bg-[var(--card)] border font-semibold hover:border-[var(--color-coral)]"
               )}
               style={sort === value ? { backgroundColor: "var(--color-coral)" } : {}}
             >
@@ -131,7 +131,7 @@ export function GameList({ games: initialGames }: GameListProps) {
             "px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer",
             groupByCategory
               ? "text-white"
-              : "bg-white border font-semibold hover:border-[var(--color-coral)]"
+              : "bg-[var(--card)] border font-semibold hover:border-[var(--color-coral)]"
           )}
           style={groupByCategory ? { backgroundColor: "var(--color-mint, #4ecdc4)" } : {}}
         >
@@ -226,7 +226,7 @@ function GameCard({ game, onFavorite, onArchive, formatLastPlayed, archived }: G
       <Link
         href={`/games/${game.id}`}
         className={cn(
-          "flex items-center gap-3 p-3 bg-white rounded-2xl border transition-colors",
+          "flex items-center gap-3 p-3 bg-[var(--card)] rounded-2xl border transition-colors",
           "hover:border-[var(--color-coral)] active:scale-[0.98] pr-20"
         )}
       >
@@ -269,7 +269,7 @@ function GameCard({ game, onFavorite, onArchive, formatLastPlayed, archived }: G
               "w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer",
               game.is_favorite
                 ? "text-yellow-400 hover:text-yellow-500"
-                : "text-gray-300 hover:text-yellow-400"
+                : "text-[var(--border)] hover:text-yellow-400"
             )}
             title={game.is_favorite ? "Verwijder uit favorieten" : "Toevoegen aan favorieten"}
           >
@@ -278,7 +278,7 @@ function GameCard({ game, onFavorite, onArchive, formatLastPlayed, archived }: G
         )}
         <button
           onClick={(e) => onArchive(game, e)}
-          className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer text-gray-300 hover:text-gray-500"
+          className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
           title={archived ? "Herstellen uit archief" : "Archiveren"}
         >
           {archived ? <ArchiveX className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
