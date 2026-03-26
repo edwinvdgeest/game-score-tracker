@@ -11,6 +11,7 @@ import {
 } from "@/lib/utils";
 import type {
   Game,
+  GameWithStats,
   Player,
   PlayerStats,
   TopGame,
@@ -41,7 +42,88 @@ export async function getGames(): Promise<Game[]> {
   return (data ?? []) as Game[];
 }
 
-/** Fetch games sorted by most recently played (for Quick Log grid) */
+/** Fetch all games enriched with mini-stats (session count, last played, top winner) */
+export async function getGamesWithStats(): Promise<GameWithStats[]> {
+  const supabase = createServerClient();
+
+  const [gamesResult, sessionsResult, playersResult] = await Promise.all([
+    supabase.from("games").select("*"),
+    supabase
+      .from("game_sessions")
+      .select("game_id, played_at, winner_id")
+      .order("played_at", { ascending: false }),
+    supabase.from("players").select("id, name, emoji").eq("is_active", true),
+  ]);
+
+  if (gamesResult.error) throw new Error(`Failed to fetch games: ${gamesResult.error.message}`);
+  if (sessionsResult.error) throw new Error(`Failed to fetch sessions: ${sessionsResult.error.message}`);
+
+  const games = (gamesResult.data ?? []) as Game[];
+  const sessions = sessionsResult.data ?? [];
+  const players = (playersResult.data ?? []) as { id: string; name: string; emoji: string }[];
+
+  // Build stats per game
+  const statsMap = new Map<string, { count: number; lastPlayed: string | null; wins: Map<string, number> }>();
+  for (const game of games) {
+    statsMap.set(game.id, { count: 0, lastPlayed: null, wins: new Map() });
+  }
+
+  for (const session of sessions) {
+    const gameId = session.game_id as string;
+    const stat = statsMap.get(gameId);
+    if (!stat) continue;
+    stat.count++;
+    if (!stat.lastPlayed) stat.lastPlayed = session.played_at as string;
+    if (session.winner_id) {
+      const winnerId = session.winner_id as string;
+      stat.wins.set(winnerId, (stat.wins.get(winnerId) ?? 0) + 1);
+    }
+  }
+
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+
+  return games.map((game) => {
+    const stat = statsMap.get(game.id) ?? { count: 0, lastPlayed: null, wins: new Map() };
+    let topWinner: GameWithStats["topWinner"] = null;
+    if (stat.count > 0 && stat.wins.size > 0) {
+      let bestId = "";
+      let bestWins = 0;
+      for (const [pid, wins] of stat.wins) {
+        if (wins > bestWins) { bestWins = wins; bestId = pid; }
+      }
+      const player = playerMap.get(bestId);
+      if (player) {
+        topWinner = {
+          name: player.name,
+          emoji: player.emoji,
+          winPercentage: Math.round((bestWins / stat.count) * 100),
+        };
+      }
+    }
+    return {
+      ...game,
+      totalSessions: stat.count,
+      lastPlayedAt: stat.lastPlayed,
+      topWinner,
+    };
+  });
+}
+
+/** Toggle favorite status for a game */
+export async function toggleGameFavorite(id: string, value: boolean): Promise<void> {
+  const supabase = createServerClient();
+  const { error } = await supabase.from("games").update({ is_favorite: value }).eq("id", id);
+  if (error) throw new Error(`Failed to update favorite: ${error.message}`);
+}
+
+/** Toggle archive status for a game */
+export async function toggleGameArchive(id: string, value: boolean): Promise<void> {
+  const supabase = createServerClient();
+  const { error } = await supabase.from("games").update({ is_archived: value }).eq("id", id);
+  if (error) throw new Error(`Failed to update archive: ${error.message}`);
+}
+
+/** Fetch games sorted by most recently played (for Quick Log grid), excluding archived */
 export async function getGamesSortedByRecent(): Promise<Game[]> {
   const supabase = createServerClient();
 
@@ -50,7 +132,7 @@ export async function getGamesSortedByRecent(): Promise<Game[]> {
       .from("game_sessions")
       .select("game_id, played_at")
       .order("played_at", { ascending: false }),
-    supabase.from("games").select("*"),
+    supabase.from("games").select("*").eq("is_archived", false),
   ]);
 
   if (sessionsResult.error)
@@ -142,10 +224,15 @@ export async function getGameById(id: string): Promise<Game | null> {
   return data as Game;
 }
 
+type UpdateGameInput = Partial<CreateGameInput> & {
+  is_favorite?: boolean;
+  is_archived?: boolean;
+};
+
 /** Update an existing game */
 export async function updateGame(
   id: string,
-  input: Partial<CreateGameInput>
+  input: UpdateGameInput
 ): Promise<Game> {
   const supabase = createServerClient();
   const { data, error } = await supabase

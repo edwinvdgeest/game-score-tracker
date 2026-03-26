@@ -28,8 +28,16 @@ export const gameSchema = z.object({
   min_players: z.number().int(),
   max_players: z.number().int(),
   created_at: z.string(),
+  is_favorite: z.boolean().optional().default(false),
+  is_archived: z.boolean().optional().default(false),
 });
 export type Game = z.infer<typeof gameSchema>;
+
+export type GameWithStats = Game & {
+  totalSessions: number;
+  lastPlayedAt: string | null;
+  topWinner: { name: string; emoji: string; winPercentage: number } | null;
+};
 
 export const gameSessionSchema = z.object({
   id: z.string().uuid(),
