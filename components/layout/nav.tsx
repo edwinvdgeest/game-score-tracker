@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { DarkModeToggle } from "./dark-mode-toggle";
+import { useActiveMarathon } from "@/lib/hooks/useMarathon";
 
 const PRIMARY_NAV = [
   { href: "/", label: "Loggen", emoji: "🎮" },
@@ -58,7 +59,18 @@ export function Nav() {
               className="flex-1 flex flex-col items-center py-3 text-xs font-bold transition-colors"
               style={{ color: isActive ? "var(--color-coral)" : "var(--muted-foreground)" }}
             >
-              <span className="text-2xl mb-0.5">{item.emoji}</span>
+              <span className="text-2xl mb-0.5 relative">
+                {item.emoji}
+                {"badge" in item && item.badge && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"
+                    style={{
+                      backgroundColor: "var(--color-coral)",
+                      borderColor: "var(--card)",
+                    }}
+                  />
+                )}
+              </span>
               {item.label}
             </Link>
           );

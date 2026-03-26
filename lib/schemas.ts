@@ -47,6 +47,7 @@ export const gameSessionSchema = z.object({
   winner_id: z.string().uuid().nullable(),
   starter_id: z.string().uuid().nullable(),
   notes: z.string().nullable(),
+  marathon_id: z.string().uuid().nullable().optional(),
   created_at: z.string(),
 });
 export type GameSession = z.infer<typeof gameSessionSchema>;
@@ -66,6 +67,7 @@ export const createSessionSchema = z.object({
   starter_id: z.string().uuid().nullable().optional(),
   played_at: z.string().datetime().optional(),
   notes: z.string().max(500).nullable().optional(),
+  marathon_id: z.string().uuid().nullable().optional(),
   scores: z
     .array(
       z.object({
@@ -117,6 +119,22 @@ export type StatsResponse = z.infer<typeof statsResponseSchema>;
 
 export const periodFilterSchema = z.enum(["all", "this_year", "last_year"]);
 export type PeriodFilter = z.infer<typeof periodFilterSchema>;
+
+// Marathon types
+export const marathonSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().nullable(),
+  started_at: z.string(),
+  ended_at: z.string().nullable(),
+  is_active: z.boolean(),
+  created_at: z.string(),
+});
+export type Marathon = z.infer<typeof marathonSchema>;
+
+export const createMarathonSchema = z.object({
+  name: z.string().min(1).max(200),
+});
+export type CreateMarathonInput = z.infer<typeof createMarathonSchema>;
 
 // API input schema for PATCH /api/sessions/[id]
 export const updateSessionSchema = z.object({

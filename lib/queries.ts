@@ -12,6 +12,7 @@ import {
 import type {
   Game,
   GameWithStats,
+  Marathon,
   Player,
   PlayerStats,
   TopGame,
@@ -20,6 +21,7 @@ import type {
   CreateSessionInput,
   CreateGameInput,
   UpdateSessionInput,
+  CreateMarathonInput,
 } from "@/lib/schemas";
 
 /** Fetch all active players */
@@ -178,6 +180,7 @@ export async function createSession(input: CreateSessionInput): Promise<void> {
       winner_id: input.winner_id ?? null,
       starter_id: input.starter_id ?? null,
       notes: input.notes ?? null,
+      marathon_id: input.marathon_id ?? null,
     })
     .select("id")
     .single();
@@ -638,4 +641,187 @@ export async function getStats(
   ) as StatsResponse["recent_sessions"];
 
   return { leaderboard, top_games, recent_sessions };
+}
+
+// ─── Marathon queries ────────────────────────────────────────────────────────
+
+/** Start een nieuwe marathon */
+export async function createMarathon(input: CreateMarathonInput): Promise<Marathon> {
+  const supabase = createServerClient();
+  // Deactiveer eerst eventuele andere actieve marathons
+  await supabase.from("marathons").update({ is_active: false }).eq("is_active", true);
+
+  const { data, error } = await supabase
+    .from("marathons")
+    .insert({ name: input.name, is_active: true })
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to create marathon: ${error.message}`);
+  if (!data) throw new Error("No marathon returned after insert");
+  return data as Marathon;
+}
+
+/** Haal de actieve marathon op (of null) */
+export async function getActiveMarathon(): Promise<Marathon | null> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("marathons")
+    .select("*")
+    .eq("is_active", true)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to fetch active marathon: ${error.message}`);
+  return data as Marathon | null;
+}
+
+export type MarathonSessionDetail = {
+  id: string;
+  played_at: string;
+  winner_id: string | null;
+  game: { id: string; name: string; emoji: string };
+  winner: { id: string; name: string; emoji: string } | null;
+  scores: Array<{ player_id: string; score: number | null }>;
+};
+
+export type MarathonDetail = {
+  marathon: Marathon;
+  sessions: MarathonSessionDetail[];
+  players: Player[];
+  winCounts: Record<string, number>; // playerId → aantal wins
+  mostPlayedGame: { name: string; emoji: string; count: number } | null;
+  longestStreak: { player: Player; streak: number } | null;
+};
+
+/** Gedetailleerde live data voor een specifieke marathon */
+export async function getMarathonDetail(marathonId: string): Promise<MarathonDetail | null> {
+  const supabase = createServerClient();
+
+  const [marathonResult, sessionsResult, playersResult] = await Promise.all([
+    supabase.from("marathons").select("*").eq("id", marathonId).single(),
+    supabase
+      .from("game_sessions")
+      .select("id, played_at, winner_id, game:games(id,name,emoji), winner:players!winner_id(id,name,emoji)")
+      .eq("marathon_id", marathonId)
+      .order("played_at", { ascending: true }),
+    supabase.from("players").select("*").eq("is_active", true),
+  ]);
+
+  if (marathonResult.error || !marathonResult.data) return null;
+  if (sessionsResult.error) throw new Error(sessionsResult.error.message);
+  if (playersResult.error) throw new Error(playersResult.error.message);
+
+  const marathon = marathonResult.data as Marathon;
+  const sessions = (sessionsResult.data ?? []) as unknown as MarathonSessionDetail[];
+  const players = (playersResult.data ?? []) as Player[];
+
+  // Win counts per speler
+  const winCounts: Record<string, number> = {};
+  for (const s of sessions) {
+    if (s.winner_id) {
+      winCounts[s.winner_id] = (winCounts[s.winner_id] ?? 0) + 1;
+    }
+  }
+
+  // Meest gespeeld spel
+  const gameCounts = new Map<string, { name: string; emoji: string; count: number }>();
+  for (const s of sessions) {
+    const g = s.game;
+    if (g) {
+      const existing = gameCounts.get(g.id);
+      if (existing) existing.count++;
+      else gameCounts.set(g.id, { name: g.name, emoji: g.emoji, count: 1 });
+    }
+  }
+  const mostPlayedGame = gameCounts.size > 0
+    ? Array.from(gameCounts.values()).sort((a, b) => b.count - a.count)[0] ?? null
+    : null;
+
+  // Langste winstreak per speler
+  let longestStreak: { player: Player; streak: number } | null = null;
+  for (const player of players) {
+    let maxStreak = 0;
+    let cur = 0;
+    for (const s of sessions) {
+      if (s.winner_id === player.id) { cur++; maxStreak = Math.max(maxStreak, cur); }
+      else cur = 0;
+    }
+    if (maxStreak > 0 && (longestStreak === null || maxStreak > longestStreak.streak)) {
+      longestStreak = { player, streak: maxStreak };
+    }
+  }
+
+  return { marathon, sessions, players, winCounts, mostPlayedGame, longestStreak };
+}
+
+/** Beëindig een marathon */
+export async function endMarathon(id: string): Promise<Marathon> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("marathons")
+    .update({ is_active: false, ended_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to end marathon: ${error.message}`);
+  if (!data) throw new Error("No marathon returned after update");
+  return data as Marathon;
+}
+
+export type MarathonSummary = {
+  marathon: Marathon;
+  sessionCount: number;
+  winner: Player | null;
+  gamesPlayed: string[];
+};
+
+/** Alle afgesloten marathons als overzicht */
+export async function getMarathonHistory(): Promise<MarathonSummary[]> {
+  const supabase = createServerClient();
+
+  const [marathonsResult, sessionsResult, playersResult] = await Promise.all([
+    supabase.from("marathons").select("*").order("started_at", { ascending: false }),
+    supabase
+      .from("game_sessions")
+      .select("marathon_id, winner_id, game:games(name,emoji)")
+      .not("marathon_id", "is", null),
+    supabase.from("players").select("*").eq("is_active", true),
+  ]);
+
+  if (marathonsResult.error) throw new Error(marathonsResult.error.message);
+  if (sessionsResult.error) throw new Error(sessionsResult.error.message);
+
+  const marathons = (marathonsResult.data ?? []) as Marathon[];
+  const allSessions = sessionsResult.data ?? [];
+  const players = (playersResult.data ?? []) as Player[];
+  const playerMap = new Map(players.map((p) => [p.id, p]));
+
+  return marathons.map((m) => {
+    const mSessions = allSessions.filter((s) => s.marathon_id === m.id);
+    const sessionCount = mSessions.length;
+
+    // Winnaar = meeste wins
+    const wins: Record<string, number> = {};
+    for (const s of mSessions) {
+      if (s.winner_id) wins[s.winner_id] = (wins[s.winner_id] ?? 0) + 1;
+    }
+    let winnerId: string | null = null;
+    let maxWins = 0;
+    for (const [pid, w] of Object.entries(wins)) {
+      if (w > maxWins) { maxWins = w; winnerId = pid; }
+    }
+
+    const gamesSet = new Set<string>();
+    for (const s of mSessions) {
+      const g = s.game as unknown as { name: string; emoji: string } | null;
+      if (g) gamesSet.add(`${g.emoji} ${g.name}`);
+    }
+
+    return {
+      marathon: m,
+      sessionCount,
+      winner: winnerId ? (playerMap.get(winnerId) ?? null) : null,
+      gamesPlayed: Array.from(gamesSet),
+    };
+  });
 }

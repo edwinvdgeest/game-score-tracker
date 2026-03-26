@@ -5,6 +5,7 @@ import { Nav } from "@/components/layout/nav";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { OfflineBanner } from "@/components/layout/offline-banner";
+import { MarathonBanner } from "@/components/marathon/marathon-banner";
 
 const nunito = Nunito({
   subsets: ["latin"],
@@ -43,6 +44,7 @@ export default function RootLayout({
     <html lang="nl" className={nunito.variable} suppressHydrationWarning>
       <body className="min-h-screen antialiased pb-20" style={{ backgroundColor: "var(--background)" }}>
         <ThemeProvider>
+          <MarathonBanner />
           <OfflineBanner />
           <main className="max-w-md mx-auto px-4 pt-6">{children}</main>
           <Nav />
