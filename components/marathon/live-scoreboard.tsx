@@ -81,81 +81,84 @@ export function LiveScoreboard({ marathonId }: Props) {
         </p>
       </div>
 
-      {/* Scorebord — groot en leesbaar */}
-      <div className="space-y-3">
-        {ranked.map((player, i) => {
-          const wins = winCounts[player.id] ?? 0;
-          const losses = sessions.filter(s => s.winner_id !== null && s.winner_id !== player.id).length;
-          const isLeader = i === 0 && wins > 0;
-          return (
-            <div
-              key={player.id}
-              className="flex items-center gap-4 rounded-3xl px-5 py-4 transition-transform"
-              style={{
-                backgroundColor: isLeader ? "color-mix(in srgb, var(--color-coral) 15%, var(--card))" : "var(--card)",
-                border: isLeader ? "2px solid var(--color-coral)" : "2px solid var(--border)",
-              }}
-            >
-              <span className="text-3xl">{podiumEmojis[i] ?? "🎮"}</span>
-              <span className="text-4xl">{player.emoji}</span>
-              <div className="flex-1">
-                <div className="text-xl font-black" style={{ color: "var(--foreground)" }}>
-                  {player.name}
+      {/* Op tablet: scorebord + gespeelde potjes naast elkaar */}
+      <div className="md:grid md:grid-cols-2 md:gap-6 md:items-start">
+        {/* Scorebord — groot en leesbaar */}
+        <div className="space-y-3">
+          {ranked.map((player, i) => {
+            const wins = winCounts[player.id] ?? 0;
+            const losses = sessions.filter(s => s.winner_id !== null && s.winner_id !== player.id).length;
+            const isLeader = i === 0 && wins > 0;
+            return (
+              <div
+                key={player.id}
+                className="flex items-center gap-4 rounded-3xl px-5 py-4 transition-transform"
+                style={{
+                  backgroundColor: isLeader ? "color-mix(in srgb, var(--color-coral) 15%, var(--card))" : "var(--card)",
+                  border: isLeader ? "2px solid var(--color-coral)" : "2px solid var(--border)",
+                }}
+              >
+                <span className="text-3xl">{podiumEmojis[i] ?? "🎮"}</span>
+                <span className="text-4xl">{player.emoji}</span>
+                <div className="flex-1">
+                  <div className="text-xl font-black" style={{ color: "var(--foreground)" }}>
+                    {player.name}
+                  </div>
+                  <div className="text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                    {losses} {losses === 1 ? "verlies" : "verlies"} · {sessions.length - wins - losses} gelijk
+                  </div>
                 </div>
-                <div className="text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>
-                  {losses} {losses === 1 ? "verlies" : "verlies"} · {sessions.length - wins - losses} gelijk
+                <div className="text-right">
+                  <div className="text-5xl font-black" style={{ color: isLeader ? "var(--color-coral)" : "var(--foreground)" }}>
+                    {wins}
+                  </div>
+                  <div className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>
+                    {wins === 1 ? "win" : "wins"}
+                  </div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-5xl font-black" style={{ color: isLeader ? "var(--color-coral)" : "var(--foreground)" }}>
-                  {wins}
+            );
+          })}
+        </div>
+
+        {/* Gespeelde potjes */}
+        {sessions.length > 0 && (
+          <div className="space-y-2 mt-6 md:mt-0">
+            <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>
+              Gespeelde potjes
+            </p>
+            <div className="space-y-1.5">
+              {[...sessions].reverse().map((s, i) => (
+                <div
+                  key={s.id}
+                  className="flex items-center gap-3 rounded-2xl px-4 py-2.5"
+                  style={{ backgroundColor: "var(--card)" }}
+                >
+                  <span className="text-xs font-bold w-5 text-right" style={{ color: "var(--muted-foreground)" }}>
+                    {sessions.length - i}
+                  </span>
+                  <span className="text-lg">{s.game?.emoji ?? "🎮"}</span>
+                  <span className="flex-1 text-sm font-bold" style={{ color: "var(--foreground)" }}>
+                    {s.game?.name ?? "Onbekend spel"}
+                  </span>
+                  {s.winner ? (
+                    <span className="text-sm font-extrabold" style={{ color: "var(--color-coral)" }}>
+                      {s.winner.emoji} {s.winner.name}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                      🤝 Gelijk
+                    </span>
+                  )}
                 </div>
-                <div className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>
-                  {wins === 1 ? "win" : "wins"}
-                </div>
-              </div>
+              ))}
             </div>
-          );
-        })}
+          </div>
+        )}
       </div>
 
-      {/* Gespeelde potjes */}
-      {sessions.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>
-            Gespeelde potjes
-          </p>
-          <div className="space-y-1.5">
-            {[...sessions].reverse().map((s, i) => (
-              <div
-                key={s.id}
-                className="flex items-center gap-3 rounded-2xl px-4 py-2.5"
-                style={{ backgroundColor: "var(--card)" }}
-              >
-                <span className="text-xs font-bold w-5 text-right" style={{ color: "var(--muted-foreground)" }}>
-                  {sessions.length - i}
-                </span>
-                <span className="text-lg">{s.game?.emoji ?? "🎮"}</span>
-                <span className="flex-1 text-sm font-bold" style={{ color: "var(--foreground)" }}>
-                  {s.game?.name ?? "Onbekend spel"}
-                </span>
-                {s.winner ? (
-                  <span className="text-sm font-extrabold" style={{ color: "var(--color-coral)" }}>
-                    {s.winner.emoji} {s.winner.name}
-                  </span>
-                ) : (
-                  <span className="text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>
-                    🤝 Gelijk
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Acties */}
-      <div className="space-y-3">
+      <div className="space-y-3 md:flex md:gap-3 md:space-y-0">
         <Link
           href="/"
           className="flex items-center justify-center gap-2 w-full py-4 rounded-2xl font-black text-white text-lg transition-opacity hover:opacity-90"

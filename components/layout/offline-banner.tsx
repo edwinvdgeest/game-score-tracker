@@ -10,7 +10,7 @@ export function OfflineBanner() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-center"
+      className="fixed top-0 left-0 right-0 md:left-52 z-50 flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-center"
       style={{ backgroundColor: "#f39c12", color: "#fff" }}
     >
       📵 Offline

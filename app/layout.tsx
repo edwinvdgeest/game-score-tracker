@@ -42,12 +42,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="nl" className={nunito.variable} suppressHydrationWarning>
-      <body className="min-h-screen antialiased pb-20" style={{ backgroundColor: "var(--background)" }}>
+      <body className="min-h-screen antialiased pb-20 md:pb-0 md:pl-52" style={{ backgroundColor: "var(--background)" }}>
         <ThemeProvider>
+          <Nav />
           <MarathonBanner />
           <OfflineBanner />
-          <main className="max-w-md mx-auto px-4 pt-6">{children}</main>
-          <Nav />
+          <main className="max-w-md mx-auto px-4 pt-6 md:max-w-3xl">{children}</main>
           <Toaster richColors position="top-center" />
         </ThemeProvider>
       </body>

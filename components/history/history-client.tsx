@@ -103,21 +103,36 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
 
   return (
     <div className="space-y-3">
+      {/* Tabelkop — alleen zichtbaar op tablet */}
+      <div
+        className="hidden md:grid md:grid-cols-[2fr_1fr_1fr_auto] gap-4 px-4 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wide"
+        style={{ color: "var(--muted-foreground)", backgroundColor: "var(--color-warm-gray)" }}
+      >
+        <span>Spel</span>
+        <span>Winnaar</span>
+        <span>Datum</span>
+        <span>Acties</span>
+      </div>
+
       {localSessions.map((session) => (
         <div
           key={session.id}
           className="bg-[var(--card)] rounded-2xl border overflow-hidden"
         >
           {/* Session row */}
-          <div className="flex items-center gap-3 p-3">
-            <span className="text-2xl">{session.game.emoji}</span>
-            <div className="flex-1 min-w-0">
-              <div className="font-extrabold text-sm truncate">{session.game.name}</div>
-              <div className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-                {formatDate(session.played_at)}
+          <div className="flex items-center gap-3 p-3 md:grid md:grid-cols-[2fr_1fr_1fr_auto] md:gap-4 md:px-4 md:py-3">
+            {/* Spel */}
+            <div className="flex items-center gap-3 min-w-0 md:col-span-1">
+              <span className="text-2xl flex-shrink-0">{session.game.emoji}</span>
+              <div className="min-w-0">
+                <div className="font-extrabold text-sm truncate">{session.game.name}</div>
+                <div className="text-xs font-semibold md:hidden" style={{ color: "var(--muted-foreground)" }}>
+                  {formatDate(session.played_at)}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-1 mr-2">
+            {/* Winnaar */}
+            <div className="flex items-center gap-1 mr-2 md:mr-0">
               {session.winner ? (
                 <>
                   <span className="text-lg">{session.winner.emoji}</span>
@@ -129,6 +144,11 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                 </span>
               )}
             </div>
+            {/* Datum — alleen tablet */}
+            <div className="hidden md:block text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              {formatDate(session.played_at)}
+            </div>
+            {/* Acties */}
             <div className="flex gap-1">
               <button
                 onClick={() =>

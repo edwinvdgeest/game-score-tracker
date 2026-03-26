@@ -153,7 +153,7 @@ export function GameList({ games: initialGames }: GameListProps) {
                 >
                   {categoryLabel[cat] ?? cat}
                 </h2>
-                <div className="space-y-2">
+                <div className="space-y-2 md:grid md:grid-cols-2 md:gap-2 md:space-y-0">
                   {items.map((game) => (
                     <GameCard
                       key={game.id}
@@ -169,7 +169,7 @@ export function GameList({ games: initialGames }: GameListProps) {
           })}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 md:grid md:grid-cols-2 md:gap-2 md:space-y-0">
           {sorted.map((game) => (
             <GameCard
               key={game.id}
@@ -193,7 +193,7 @@ export function GameList({ games: initialGames }: GameListProps) {
             {showArchived ? "▲ Verberg gearchiveerde spellen" : `▼ Toon gearchiveerde spellen (${archivedGames.length})`}
           </button>
           {showArchived && (
-            <div className="space-y-2 mt-2 opacity-50">
+            <div className="space-y-2 mt-2 opacity-50 md:grid md:grid-cols-2 md:gap-2 md:space-y-0">
               {archivedGames.map((game) => (
                 <GameCard
                   key={game.id}

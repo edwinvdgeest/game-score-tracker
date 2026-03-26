@@ -73,14 +73,21 @@ export function DashboardClient({ initialStats, games }: DashboardClientProps) {
           </button>
         </div>
       )}
-      <Leaderboard leaderboard={displayStats.leaderboard} />
-      <StreakCards leaderboard={displayStats.leaderboard} />
-      <LazyInView>
-        <TopGamesChart topGames={displayStats.top_games} />
-      </LazyInView>
-      <LazyInView>
-        <DayOfWeekChart />
-      </LazyInView>
+      {/* Op tablet: leaderboard + streaks naast elkaar, charts naast elkaar */}
+      <div className="md:grid md:grid-cols-2 md:gap-6">
+        <div className="space-y-6">
+          <Leaderboard leaderboard={displayStats.leaderboard} />
+          <StreakCards leaderboard={displayStats.leaderboard} />
+        </div>
+        <div className="space-y-6 mt-6 md:mt-0">
+          <LazyInView>
+            <TopGamesChart topGames={displayStats.top_games} />
+          </LazyInView>
+          <LazyInView>
+            <DayOfWeekChart />
+          </LazyInView>
+        </div>
+      </div>
       <RecentGames sessions={displayStats.recent_sessions} />
     </div>
   );
