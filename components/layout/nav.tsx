@@ -19,6 +19,7 @@ const MORE_NAV = [
   { href: "/history", label: "Historie", emoji: "📜" },
   { href: "/achievements", label: "Badges", emoji: "🏅" },
   { href: "/suggest", label: "Suggestie", emoji: "🎲" },
+  { href: "/guests", label: "Gasten", emoji: "🎭" },
 ];
 
 export function Nav() {

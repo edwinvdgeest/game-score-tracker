@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
 
+const GUEST_EMOJIS = ["🎭", "🌟", "🎪", "🦋", "🌈", "🎯", "🎨", "🎸", "🌺", "🦊"];
+
 // Dynamically load confetti to avoid SSR issues
 const ReactConfetti = dynamic(() => import("react-confetti"), { ssr: false });
 
@@ -65,14 +67,48 @@ export function SessionForm({ games, players }: SessionFormProps) {
 
   const { marathon } = useActiveMarathon();
 
+  // Lokale spelerslijst: vaste spelers + gastspelers die deze sessie zijn toegevoegd
+  const [localPlayers, setLocalPlayers] = useState<Player[]>(players);
+
   // Default: everyone except Minou
   const [activePlayerIds, setActivePlayerIds] = useState<Set<string>>(
     () => new Set(players.filter((p) => p.name !== "Minou").map((p) => p.id))
   );
 
+  // Gast-formulier staat
+  const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmoji, setGuestEmoji] = useState("🎭");
+  const [addingGuest, setAddingGuest] = useState(false);
+
+  const handleAddGuest = useCallback(async () => {
+    const name = guestName.trim();
+    if (!name) return;
+    setAddingGuest(true);
+    try {
+      const res = await fetch("/api/players", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, emoji: guestEmoji }),
+      });
+      if (!res.ok) throw new Error("Aanmaken mislukt");
+      const newPlayer = (await res.json()) as Player;
+      setLocalPlayers((prev) => [...prev, newPlayer]);
+      setActivePlayerIds((prev) => new Set([...prev, newPlayer.id]));
+      setGuestName("");
+      setGuestEmoji("🎭");
+      setShowGuestForm(false);
+      toast.success(`${newPlayer.emoji} ${newPlayer.name} toegevoegd!`);
+    } catch {
+      toast.error("Kon gastspeler niet toevoegen. Probeer opnieuw.");
+    } finally {
+      setAddingGuest(false);
+    }
+  }, [guestName, guestEmoji]);
+
   const activePlayers = useMemo(
-    () => players.filter((p) => activePlayerIds.has(p.id)),
-    [players, activePlayerIds]
+    () => localPlayers.filter((p) => activePlayerIds.has(p.id)),
+    [localPlayers, activePlayerIds]
   );
 
   const togglePlayer = useCallback((playerId: string) => {
@@ -331,25 +367,100 @@ export function SessionForm({ games, players }: SessionFormProps) {
               Wie spelen er mee?
             </p>
             <div className="flex gap-2 flex-wrap">
-              {players.map((player) => {
+              {localPlayers.map((player) => {
                 const active = activePlayerIds.has(player.id);
+                const isGuest = player.is_guest;
                 return (
                   <button
                     key={player.id}
                     onClick={() => togglePlayer(player.id)}
                     className={cn(
-                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 font-bold text-sm transition-all cursor-pointer",
-                      active
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold text-sm transition-all cursor-pointer",
+                      isGuest ? "border-2 border-dashed" : "border-2",
+                      active && !isGuest
                         ? "border-[var(--color-coral)] bg-[color-mix(in_srgb,var(--color-coral)_10%,transparent)]"
+                        : active && isGuest
+                        ? "border-[var(--color-coral)] bg-[color-mix(in_srgb,var(--color-coral)_8%,transparent)] opacity-90"
                         : "border-[var(--border)] opacity-50"
                     )}
                   >
                     <span>{player.emoji}</span>
                     <span>{player.name}</span>
+                    {isGuest && active && (
+                      <span className="text-xs opacity-60">gast</span>
+                    )}
                   </button>
                 );
               })}
+
+              {/* + Gast knop */}
+              {!showGuestForm && (
+                <button
+                  onClick={() => setShowGuestForm(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 border-dashed font-bold text-sm transition-all cursor-pointer hover:border-[var(--color-coral)] hover:text-[var(--color-coral)]"
+                  style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+                >
+                  <span>+</span>
+                  <span>Gast</span>
+                </button>
+              )}
             </div>
+
+            {/* Inline gast-formulier */}
+            {showGuestForm && (
+              <div
+                className="mt-3 p-3 rounded-2xl border-2 border-dashed space-y-2"
+                style={{ borderColor: "var(--color-coral)", backgroundColor: "color-mix(in srgb, var(--color-coral) 5%, var(--card))" }}
+              >
+                <p className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--color-coral)" }}>
+                  Gastspeler toevoegen
+                </p>
+                <div className="flex gap-2">
+                  {/* Emoji picker */}
+                  <div className="relative">
+                    <select
+                      value={guestEmoji}
+                      onChange={(e) => setGuestEmoji(e.target.value)}
+                      className="appearance-none w-12 h-10 rounded-xl border-2 text-center text-lg font-bold cursor-pointer outline-none"
+                      style={{ borderColor: "var(--border)", backgroundColor: "var(--background)" }}
+                    >
+                      {GUEST_EMOJIS.map((em) => (
+                        <option key={em} value={em}>{em}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Naam invoer */}
+                  <input
+                    type="text"
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleAddGuest(); }}
+                    placeholder="Naam van de gast"
+                    maxLength={50}
+                    autoFocus
+                    className="flex-1 px-3 py-2 rounded-xl border-2 font-bold text-sm outline-none focus:border-[var(--color-coral)]"
+                    style={{ borderColor: "var(--border)", backgroundColor: "var(--background)", color: "var(--foreground)" }}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setShowGuestForm(false); setGuestName(""); setGuestEmoji("🎭"); }}
+                    className="flex-1 py-2 rounded-xl border-2 font-bold text-sm"
+                    style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+                  >
+                    Annuleren
+                  </button>
+                  <button
+                    onClick={() => void handleAddGuest()}
+                    disabled={!guestName.trim() || addingGuest}
+                    className="flex-1 py-2 rounded-xl font-bold text-sm text-white disabled:opacity-50"
+                    style={{ backgroundColor: "var(--color-coral)" }}
+                  >
+                    {addingGuest ? "…" : "Toevoegen"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <GameGrid

@@ -16,9 +16,16 @@ export const playerSchema = z.object({
   name: z.string(),
   emoji: z.string(),
   is_active: z.boolean(),
+  is_guest: z.boolean().default(false),
   created_at: z.string(),
 });
 export type Player = z.infer<typeof playerSchema>;
+
+export const createGuestPlayerSchema = z.object({
+  name: z.string().min(1).max(50),
+  emoji: z.string().min(1).max(10).default("🎭"),
+});
+export type CreateGuestPlayerInput = z.infer<typeof createGuestPlayerSchema>;
 
 export const gameSchema = z.object({
   id: z.string().uuid(),
