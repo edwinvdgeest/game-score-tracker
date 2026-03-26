@@ -5,7 +5,7 @@ import { useOfflineQueue } from "@/lib/hooks/useOfflineQueue";
 export function OfflineBanner() {
   const { isOnline, queueLength } = useOfflineQueue();
 
-  if (isOnline && queueLength === 0) return null;
+  if (isOnline) return null;
 
   return (
     <div
