@@ -262,11 +262,11 @@ export type SessionDetail = {
   id: string;
   played_at: string;
   day_of_week: number;
-  winner_id: string;
+  winner_id: string | null;
   starter_id: string | null;
   notes: string | null;
   game: Game;
-  winner: Player;
+  winner: Player | null;
 };
 
 /** Fetch all sessions ordered by played_at desc */

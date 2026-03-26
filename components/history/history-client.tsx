@@ -26,7 +26,7 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
 
   function startEdit(session: SessionDetail) {
     setEditingId(session.id);
-    setEditWinnerId(session.winner_id);
+    setEditWinnerId(session.winner_id ?? "");
     setEditStarterId(session.starter_id ?? "");
     // Convert ISO string to datetime-local format
     const dt = new Date(session.played_at);
@@ -118,8 +118,16 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
               </div>
             </div>
             <div className="flex items-center gap-1 mr-2">
-              <span className="text-lg">{session.winner.emoji}</span>
-              <span className="text-xs font-black">{session.winner.name}</span>
+              {session.winner ? (
+                <>
+                  <span className="text-lg">{session.winner.emoji}</span>
+                  <span className="text-xs font-black">{session.winner.name}</span>
+                </>
+              ) : (
+                <span className="text-xs font-black" style={{ color: "var(--muted-foreground)" }}>
+                  🤝 Gelijkspel
+                </span>
+              )}
             </div>
             <div className="flex gap-1">
               <button
@@ -214,7 +222,7 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                 Weet je zeker dat je dit potje wilt verwijderen?
               </p>
               <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-                {session.game.name} — {formatDate(session.played_at)} — gewonnen door {session.winner.name}
+                {session.game.name} — {formatDate(session.played_at)}{session.winner ? ` — gewonnen door ${session.winner.name}` : " — Gelijkspel"}
               </p>
               <div className="flex gap-2">
                 <button
