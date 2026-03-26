@@ -10,6 +10,7 @@ import { StarterPicker } from "./starter-picker";
 import { ScoreEntry } from "./score-entry";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useActiveMarathon } from "@/lib/hooks/useMarathon";
 
 // Dynamically load confetti to avoid SSR issues
 const ReactConfetti = dynamic(() => import("react-confetti"), { ssr: false });
@@ -62,6 +63,8 @@ export function SessionForm({ games, players }: SessionFormProps) {
   const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
   const touchStartX = useRef<number | null>(null);
 
+  const { marathon } = useActiveMarathon();
+
   // Default: everyone except Minou
   const [activePlayerIds, setActivePlayerIds] = useState<Set<string>>(
     () => new Set(players.filter((p) => p.name !== "Minou").map((p) => p.id))
@@ -100,6 +103,14 @@ export function SessionForm({ games, players }: SessionFormProps) {
     setStep("scores");
   }, []);
 
+  const resetForm = useCallback(() => {
+    setStep("game");
+    setSelectedGame(null);
+    setSelectedStarter(null);
+    setScores({});
+    setWinner(undefined);
+  }, []);
+
   const handleSave = useCallback(
     async (scoreValues: Record<string, string>) => {
       if (!selectedGame) return;
@@ -124,6 +135,7 @@ export function SessionForm({ games, players }: SessionFormProps) {
             winner_id: computedWinner?.id ?? null,
             starter_id: selectedStarter?.id ?? null,
             scores: scoresArray,
+            marathon_id: marathon?.id ?? null,
           }),
         });
 
@@ -136,6 +148,10 @@ export function SessionForm({ games, players }: SessionFormProps) {
           // Invalidate SWR caches so dashboard/history update instantly
           void mutate((key) => typeof key === "string" && key.startsWith("/api/stats"));
           void mutate("/api/sessions");
+          // Refresh marathon detail cache
+          if (marathon?.id) {
+            void mutate(`/api/marathon/${marathon.id}`);
+          }
         }
 
         // Haptic: kort patroon bij opslaan, langer bij confetti-moment
@@ -145,14 +161,13 @@ export function SessionForm({ games, players }: SessionFormProps) {
         setShowConfetti(true);
         setStep("done");
 
-        setTimeout(() => {
-          setShowConfetti(false);
-          setStep("game");
-          setSelectedGame(null);
-          setSelectedStarter(null);
-          setScores({});
-          setWinner(undefined);
-        }, 3500);
+        // Als geen marathon actief: auto-reset na 3.5s
+        if (!marathon) {
+          setTimeout(() => {
+            setShowConfetti(false);
+            resetForm();
+          }, 3500);
+        }
       } catch {
         toast.error("Oeps! Er ging iets mis. Probeer opnieuw.");
         setWinner(undefined);
@@ -160,7 +175,7 @@ export function SessionForm({ games, players }: SessionFormProps) {
         setSaving(false);
       }
     },
-    [selectedGame, selectedStarter, activePlayers]
+    [selectedGame, selectedStarter, activePlayers, marathon, resetForm]
   );
 
   const handleScoreChange = useCallback((playerId: string, value: string) => {
@@ -212,7 +227,7 @@ export function SessionForm({ games, players }: SessionFormProps) {
 
   if (step === "done" && selectedGame) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
         {showConfetti && (
           <ReactConfetti
             recycle={false}
@@ -222,20 +237,14 @@ export function SessionForm({ games, players }: SessionFormProps) {
         )}
         {winner ? (
           <>
-            <div
-              className="text-6xl mb-4"
-              style={{ animation: "bounce 1s infinite" }}
-            >
+            <div className="text-6xl" style={{ animation: "bounce 1s infinite" }}>
               {winner.emoji}
             </div>
             <h2 className="text-2xl font-black mb-2">🏆 {winner.name} wint!</h2>
           </>
         ) : (
           <>
-            <div
-              className="text-6xl mb-4"
-              style={{ animation: "bounce 1s infinite" }}
-            >
+            <div className="text-6xl" style={{ animation: "bounce 1s infinite" }}>
               🤝
             </div>
             <h2 className="text-2xl font-black mb-2">Gelijkspel!</h2>
@@ -244,6 +253,29 @@ export function SessionForm({ games, players }: SessionFormProps) {
         <p style={{ color: "var(--muted-foreground)" }} className="font-semibold">
           {selectedGame.emoji} {selectedGame.name}
         </p>
+
+        {/* Marathon-knoppen: Volgende spel of terug naar scorebord */}
+        {marathon && (
+          <div className="w-full space-y-2 pt-2">
+            <button
+              onClick={() => {
+                setShowConfetti(false);
+                resetForm();
+              }}
+              className="w-full py-3.5 rounded-2xl font-black text-white text-base"
+              style={{ backgroundColor: "var(--color-coral)" }}
+            >
+              🎮 Volgende spel
+            </button>
+            <Link
+              href="/marathon"
+              className="flex items-center justify-center w-full py-3 rounded-2xl font-bold border-2 text-sm"
+              style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+            >
+              🏁 Naar scorebord
+            </Link>
+          </div>
+        )}
       </div>
     );
   }
@@ -261,6 +293,19 @@ export function SessionForm({ games, players }: SessionFormProps) {
         transition: "transform 0.2s ease, opacity 0.2s ease",
       }}
     >
+      {/* Marathon indicator */}
+      {marathon && (
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-2xl text-sm font-bold"
+          style={{
+            backgroundColor: "color-mix(in srgb, var(--color-coral) 12%, var(--card))",
+            color: "var(--color-coral)",
+          }}
+        >
+          🏁 <span>Marathon actief: {marathon.name}</span>
+        </div>
+      )}
+
       {/* Progress indicator — 3 steps */}
       <div className="flex gap-2">
         {[0, 1, 2].map((i) => (
