@@ -106,7 +106,7 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
       {localSessions.map((session) => (
         <div
           key={session.id}
-          className="bg-white rounded-2xl border overflow-hidden"
+          className="bg-[var(--card)] rounded-2xl border overflow-hidden"
         >
           {/* Session row */}
           <div className="flex items-center gap-3 p-3">
@@ -134,7 +134,7 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                 onClick={() =>
                   editingId === session.id ? setEditingId(null) : startEdit(session)
                 }
-                className="p-1.5 rounded-xl hover:bg-gray-100 text-sm cursor-pointer"
+                className="p-1.5 rounded-xl hover:bg-[var(--muted)] text-sm cursor-pointer"
                 title="Bewerken"
               >
                 ✏️
@@ -160,7 +160,7 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                 <select
                   value={editWinnerId}
                   onChange={(e) => setEditWinnerId(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold bg-white"
+                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold bg-[var(--card)]"
                 >
                   {players.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -174,7 +174,7 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                 <select
                   value={editStarterId}
                   onChange={(e) => setEditStarterId(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold bg-white"
+                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold bg-[var(--card)]"
                 >
                   <option value="">Onbekend</option>
                   {players.map((p) => (
@@ -190,7 +190,7 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                   type="datetime-local"
                   value={editPlayedAt}
                   onChange={(e) => setEditPlayedAt(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold bg-white"
+                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold bg-[var(--card)]"
                 />
               </div>
               <div className="flex gap-2">
@@ -204,7 +204,7 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                 </button>
                 <button
                   onClick={() => setEditingId(null)}
-                  className="px-4 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-white"
+                  className="px-4 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-[var(--muted)]"
                 >
                   Annuleren
                 </button>
@@ -234,7 +234,7 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                 </button>
                 <button
                   onClick={() => setDeletingId(null)}
-                  className="px-4 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-white"
+                  className="px-4 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-[var(--muted)]"
                 >
                   Annuleren
                 </button>

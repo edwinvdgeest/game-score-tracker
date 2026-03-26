@@ -10,6 +10,14 @@
   --color-warm-white: #fff9f0;
   --color-warm-gray: #f7f0e6;
 
+  /* Semantic tokens — volgen automatisch dark mode via CSS-variabelen */
+  --color-bg: var(--background);
+  --color-card-bg: var(--card);
+  --color-muted-bg: var(--muted);
+  --color-border-default: var(--border);
+  --color-text: var(--foreground);
+  --color-text-muted: var(--muted-foreground);
+
   --font-sans: var(--font-nunito), "Nunito", sans-serif;
 
   --radius-sm: 0.5rem;
@@ -42,6 +50,33 @@
   --input: #e8dccf;
   --ring: #ff6b6b;
   --radius: 1rem;
+}
+
+/* Dark mode — warm paars/navy tint, coral & geel accenten blijven */
+.dark {
+  --background: #1a1528;
+  --foreground: #f5ede0;
+  --card: #241e36;
+  --card-foreground: #f5ede0;
+  --popover: #241e36;
+  --popover-foreground: #f5ede0;
+  --primary: #ff6b6b;
+  --primary-foreground: #ffffff;
+  --secondary: #4ecdc4;
+  --secondary-foreground: #1a1528;
+  --muted: #2e2645;
+  --muted-foreground: #b8a99a;
+  --accent: #a29bfe;
+  --accent-foreground: #ffffff;
+  --destructive: #e74c3c;
+  --destructive-foreground: #ffffff;
+  --border: #3d3258;
+  --input: #3d3258;
+  --ring: #ff6b6b;
+
+  /* Overschrijf warm-gray en warm-white voor dark mode */
+  --color-warm-white: #241e36;
+  --color-warm-gray: #2e2645;
 }
 
 @layer base {

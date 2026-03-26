@@ -26,7 +26,7 @@ export function PeriodFilterTabs({ value, onChange }: PeriodFilterTabsProps) {
           onClick={() => onChange(option.value)}
           className={cn(
             "flex-1 py-2 px-3 rounded-xl text-sm font-bold transition-all cursor-pointer",
-            value === option.value ? "bg-white shadow-sm" : ""
+            value === option.value ? "bg-[var(--card)] shadow-sm" : ""
           )}
           style={{
             color:

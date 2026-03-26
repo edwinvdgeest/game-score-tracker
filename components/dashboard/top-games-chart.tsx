@@ -40,7 +40,7 @@ export function TopGamesChart({ topGames }: TopGamesChartProps) {
   return (
     <div>
       <h2 className="text-lg font-extrabold mb-3">📊 Meest gespeeld</h2>
-      <div className="bg-white rounded-2xl border p-3">
+      <div className="rounded-2xl border p-3" style={{ backgroundColor: "var(--card)" }}>
         <ResponsiveContainer width="100%" height={200}>
           <BarChart
             data={data}

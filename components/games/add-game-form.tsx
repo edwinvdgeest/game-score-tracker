@@ -75,7 +75,7 @@ export function AddGameForm() {
   return (
     <form
       onSubmit={(e) => void handleSubmit(e)}
-      className="bg-white rounded-3xl border p-4 space-y-4"
+      className="bg-[var(--card)] rounded-3xl border p-4 space-y-4"
     >
       <h3 className="font-extrabold text-lg">Nieuw spel toevoegen</h3>
 
@@ -123,7 +123,7 @@ export function AddGameForm() {
               setEmoji(categoryDefaultEmoji[newCat]);
             }
           }}
-          className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)] bg-white"
+          className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)] bg-[var(--card)]"
         >
           {categories.map((cat) => (
             <option key={cat.value} value={cat.value}>
@@ -137,7 +137,7 @@ export function AddGameForm() {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="flex-1 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-gray-50"
+          className="flex-1 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-[var(--muted)]"
         >
           Annuleren
         </button>

@@ -52,7 +52,7 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
   return (
     <form
       onSubmit={(e) => void handleSubmit(e)}
-      className="bg-white rounded-3xl border p-4 space-y-4"
+      className="bg-[var(--card)] rounded-3xl border p-4 space-y-4"
     >
       <h3 className="font-extrabold text-lg">Spel bewerken ✏️</h3>
 
@@ -92,7 +92,7 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
           id="edit-game-category"
           value={category}
           onChange={(e) => setCategory(e.target.value as GameCategory)}
-          className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)] bg-white"
+          className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)] bg-[var(--card)]"
         >
           {categories.map((cat) => (
             <option key={cat.value} value={cat.value}>
@@ -106,7 +106,7 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
         <button
           type="button"
           onClick={onClose}
-          className="flex-1 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-gray-50"
+          className="flex-1 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-[var(--muted)]"
         >
           Annuleren
         </button>

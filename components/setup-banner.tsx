@@ -13,11 +13,11 @@ export function SetupBanner() {
         <div className="text-4xl">⚙️</div>
         <h2 className="text-xl font-black">Supabase instellen</h2>
         <p className="font-semibold text-sm">
-          Maak een <code className="bg-white/60 px-1 rounded">.env.local</code> bestand
+          Maak een <code className="bg-[var(--card)]/60 px-1 rounded">.env.local</code> bestand
           aan in de root van het project:
         </p>
         <pre
-          className="bg-white/60 rounded-xl p-3 text-xs font-mono overflow-auto"
+          className="bg-[var(--card)]/60 rounded-xl p-3 text-xs font-mono overflow-auto"
         >{`NEXT_PUBLIC_SUPABASE_URL=https://jouw-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...`}</pre>
         <p className="font-semibold text-sm">
