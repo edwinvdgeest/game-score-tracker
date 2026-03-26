@@ -9,9 +9,8 @@ export interface OfflineQueueState {
 }
 
 export function useOfflineQueue(): OfflineQueueState {
-  const [isOnline, setIsOnline] = useState(() =>
-    typeof navigator !== "undefined" ? navigator.onLine : true
-  );
+  // Default altijd online — voorkomt false-positive bij SSR/hydration
+  const [isOnline, setIsOnline] = useState(true);
   const [queueLength, setQueueLength] = useState(0);
 
   const fetchQueueLength = useCallback(() => {
@@ -37,7 +36,10 @@ export function useOfflineQueue(): OfflineQueueState {
       navigator.serviceWorker.register("/sw.js").catch(() => null);
     }
 
-    // Online/offline detectie
+    // Initialiseer met de werkelijke waarde na mount (browser-only)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsOnline(navigator.onLine);
+
     const handleOnline = () => {
       setIsOnline(true);
       syncQueue();

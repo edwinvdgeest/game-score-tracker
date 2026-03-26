@@ -2,20 +2,46 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { DarkModeToggle } from "./dark-mode-toggle";
 
-const navItems = [
+const PRIMARY_NAV = [
   { href: "/", label: "Loggen", emoji: "🎮" },
   { href: "/dashboard", label: "Scores", emoji: "🏆" },
-  { href: "/suggest", label: "Suggestie", emoji: "🎲" },
+  { href: "/marathon", label: "Marathon", emoji: "🏁" },
+  { href: "/games", label: "Spellen", emoji: "📋" },
+];
+
+const MORE_NAV = [
   { href: "/history", label: "Historie", emoji: "📜" },
   { href: "/achievements", label: "Badges", emoji: "🏅" },
-  { href: "/games", label: "Spellen", emoji: "📋" },
+  { href: "/suggest", label: "Suggestie", emoji: "🎲" },
 ];
 
 export function Nav() {
   const pathname = usePathname();
+  const [meerOpen, setMeerOpen] = useState(false);
+  const meerRef = useRef<HTMLDivElement>(null);
+
+  // Sluit het menu als je buiten klikt
+  useEffect(() => {
+    if (!meerOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (meerRef.current && !meerRef.current.contains(e.target as Node)) {
+        setMeerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [meerOpen]);
+
+  // Sluit het menu bij routewijziging
+  useEffect(() => {
+    setMeerOpen(false);
+  }, [pathname]);
+
+  const meerActive = MORE_NAV.some((item) => pathname === item.href);
 
   return (
     <nav
@@ -23,25 +49,68 @@ export function Nav() {
       style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
     >
       <div className="max-w-md mx-auto flex items-center">
-        {navItems.map((item) => {
+        {PRIMARY_NAV.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={cn(
-                "flex-1 flex flex-col items-center py-3 text-xs font-bold transition-colors",
-                isActive ? "text-coral" : "text-muted-foreground hover:text-foreground"
-              )}
-              style={{ color: isActive ? "var(--color-coral)" : undefined }}
+              className="flex-1 flex flex-col items-center py-3 text-xs font-bold transition-colors"
+              style={{ color: isActive ? "var(--color-coral)" : "var(--muted-foreground)" }}
             >
               <span className="text-2xl mb-0.5">{item.emoji}</span>
               {item.label}
             </Link>
           );
         })}
-        <div className="pr-2">
-          <DarkModeToggle />
+
+        {/* Meer knop met popover */}
+        <div ref={meerRef} className="flex-1 relative">
+          <button
+            onClick={() => setMeerOpen((v) => !v)}
+            className="w-full flex flex-col items-center py-3 text-xs font-bold transition-colors cursor-pointer"
+            style={{ color: meerActive || meerOpen ? "var(--color-coral)" : "var(--muted-foreground)" }}
+          >
+            <span className="text-2xl mb-0.5">⋯</span>
+            Meer
+          </button>
+
+          {/* Popover — opent omhoog */}
+          {meerOpen && (
+            <div
+              className="absolute bottom-full right-0 mb-2 rounded-2xl border shadow-lg overflow-hidden min-w-[160px]"
+              style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
+            >
+              {MORE_NAV.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors",
+                      isActive ? "font-extrabold" : "hover:bg-[var(--muted)]"
+                    )}
+                    style={{ color: isActive ? "var(--color-coral)" : "var(--foreground)" }}
+                  >
+                    <span className="text-xl">{item.emoji}</span>
+                    {item.label}
+                  </Link>
+                );
+              })}
+              <div
+                className="flex items-center gap-3 px-4 py-3 border-t"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <span className="text-sm font-bold" style={{ color: "var(--muted-foreground)" }}>
+                  Thema
+                </span>
+                <div className="ml-auto">
+                  <DarkModeToggle />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </nav>
