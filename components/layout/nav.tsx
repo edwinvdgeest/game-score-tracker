@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/", label: "Loggen", emoji: "🎮" },
   { href: "/dashboard", label: "Scores", emoji: "🏆" },
+  { href: "/suggest", label: "Suggestie", emoji: "🎲" },
   { href: "/history", label: "Historie", emoji: "📜" },
   { href: "/achievements", label: "Badges", emoji: "🏅" },
   { href: "/games", label: "Spellen", emoji: "📋" },

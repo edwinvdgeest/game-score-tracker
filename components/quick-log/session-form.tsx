@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import type { Game, Player } from "@/lib/schemas";
 import { GameGrid } from "./game-grid";
 import { StarterPicker } from "./starter-picker";
@@ -245,6 +246,14 @@ export function SessionForm({ games, players }: SessionFormProps) {
             selectedGameId={selectedGame?.id ?? null}
             onSelect={handleGameSelect}
           />
+
+          <Link
+            href="/suggest"
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 font-extrabold text-sm transition-colors hover:border-[var(--color-coral)] hover:text-[var(--color-coral)]"
+            style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+          >
+            🎲 Wat zullen we spelen?
+          </Link>
         </>
       )}
 
