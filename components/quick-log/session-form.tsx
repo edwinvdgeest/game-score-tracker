@@ -57,6 +57,7 @@ export function SessionForm({ games, players }: SessionFormProps) {
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [selectedStarter, setSelectedStarter] = useState<Player | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
+  const [duration, setDuration] = useState<number | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [saving, setSaving] = useState(false);
   // undefined = not yet saved; null = saved with tie; Player = saved with winner
@@ -144,6 +145,7 @@ export function SessionForm({ games, players }: SessionFormProps) {
     setSelectedGame(null);
     setSelectedStarter(null);
     setScores({});
+    setDuration(null);
     setWinner(undefined);
   }, []);
 
@@ -172,6 +174,7 @@ export function SessionForm({ games, players }: SessionFormProps) {
             starter_id: selectedStarter?.id ?? null,
             scores: scoresArray,
             marathon_id: marathon?.id ?? null,
+            duration_minutes: duration ?? null,
           }),
         });
 
@@ -211,7 +214,7 @@ export function SessionForm({ games, players }: SessionFormProps) {
         setSaving(false);
       }
     },
-    [selectedGame, selectedStarter, activePlayers, marathon, resetForm]
+    [selectedGame, selectedStarter, activePlayers, marathon, duration, resetForm]
   );
 
   const handleScoreChange = useCallback((playerId: string, value: string) => {
@@ -518,6 +521,8 @@ export function SessionForm({ games, players }: SessionFormProps) {
             onChange={handleScoreChange}
             onSave={() => void handleSave(scores)}
             saving={saving}
+            duration={duration}
+            onDurationChange={setDuration}
           />
         </>
       )}

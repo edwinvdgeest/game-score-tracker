@@ -13,6 +13,7 @@ export function GameSuggester({ initialCandidates }: GameSuggesterProps) {
   const [result, setResult] = useState<Game | null>(null);
   const [displayGame, setDisplayGame] = useState<Game | null>(null);
   const [phase, setPhase] = useState<"idle" | "spinning" | "done">("idle");
+  const [playerCount, setPlayerCount] = useState<number | null>(null);
 
   const spin = useCallback(async () => {
     if (spinning) return;
@@ -20,10 +21,11 @@ export function GameSuggester({ initialCandidates }: GameSuggesterProps) {
     setPhase("spinning");
     setResult(null);
 
-    // Ophalen nieuwe kandidaten
+    // Ophalen nieuwe kandidaten (met optionele spelerfilter)
     let pool = candidates;
     try {
-      const res = await fetch("/api/suggest");
+      const url = playerCount ? `/api/suggest?players=${playerCount}` : "/api/suggest";
+      const res = await fetch(url);
       if (res.ok) {
         const data = (await res.json()) as Game[];
         if (Array.isArray(data) && data.length > 0) {
@@ -61,7 +63,7 @@ export function GameSuggester({ initialCandidates }: GameSuggesterProps) {
         setSpinning(false);
       }
     }, 80 + Math.min(count * 6, 120)); // vertraagt naarmate het eindigt
-  }, [spinning, candidates]);
+  }, [spinning, candidates, playerCount]);
 
   return (
     <div className="space-y-6">
@@ -72,8 +74,6 @@ export function GameSuggester({ initialCandidates }: GameSuggesterProps) {
           backgroundColor:
             phase === "done"
               ? "var(--color-warm-yellow)"
-              : phase === "spinning"
-              ? "var(--color-warm-gray)"
               : "var(--color-warm-gray)",
           border: phase === "done" ? "3px solid var(--color-coral)" : "3px solid transparent",
         }}
@@ -126,10 +126,47 @@ export function GameSuggester({ initialCandidates }: GameSuggesterProps) {
                   style={{ color: "var(--muted-foreground)" }}
                 >
                   {displayGame.category}
+                  {displayGame.min_players && displayGame.max_players && (
+                    <> · 👥 {displayGame.min_players}–{displayGame.max_players}</>
+                  )}
+                  {displayGame.difficulty && (
+                    <> · {"⭐".repeat(displayGame.difficulty)}</>
+                  )}
                 </div>
               </div>
             )}
           </div>
+        )}
+      </div>
+
+      {/* Spelers filter */}
+      <div className="space-y-2">
+        <p className="text-xs font-bold uppercase tracking-wide text-center" style={{ color: "var(--muted-foreground)" }}>
+          👥 Hoeveel spelers?
+        </p>
+        <div className="flex justify-center gap-2">
+          {[2, 3, 4, 5, 6].map((n) => (
+            <button
+              key={n}
+              onClick={() => setPlayerCount(playerCount === n ? null : n)}
+              className="w-10 h-10 rounded-xl border-2 font-extrabold text-sm transition-all cursor-pointer"
+              style={{
+                borderColor: playerCount === n ? "var(--color-coral)" : "var(--border)",
+                backgroundColor:
+                  playerCount === n
+                    ? "color-mix(in srgb, var(--color-coral) 12%, var(--card))"
+                    : "var(--card)",
+                color: playerCount === n ? "var(--color-coral)" : "var(--muted-foreground)",
+              }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+        {playerCount && (
+          <p className="text-xs font-semibold text-center" style={{ color: "var(--muted-foreground)" }}>
+            Alleen spellen voor {playerCount} spelers
+          </p>
         )}
       </div>
 
@@ -151,6 +188,7 @@ export function GameSuggester({ initialCandidates }: GameSuggesterProps) {
         <div className="space-y-2">
           <p className="text-xs font-bold text-center" style={{ color: "var(--muted-foreground)" }}>
             Top {candidates.length} kandidaten (lang niet gespeeld)
+            {playerCount && ` · ${playerCount} spelers`}
           </p>
           <div className="grid grid-cols-1 gap-1">
             {candidates.map((g, i) => (
@@ -166,7 +204,10 @@ export function GameSuggester({ initialCandidates }: GameSuggesterProps) {
               >
                 <span className="font-bold w-4 text-center">{i + 1}.</span>
                 <span>{g.emoji}</span>
-                <span>{g.name}</span>
+                <span className="flex-1">{g.name}</span>
+                {g.difficulty && (
+                  <span className="text-xs">{"⭐".repeat(g.difficulty)}</span>
+                )}
                 {result?.id === g.id && <span className="ml-auto">← gekozen! 🎉</span>}
               </div>
             ))}

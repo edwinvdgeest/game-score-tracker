@@ -237,6 +237,7 @@ export async function createSession(input: CreateSessionInput): Promise<void> {
       starter_id: input.starter_id ?? null,
       notes: input.notes ?? null,
       marathon_id: input.marathon_id ?? null,
+      duration_minutes: input.duration_minutes ?? null,
     })
     .select("id")
     .single();
@@ -309,11 +310,13 @@ export type GameDetailStats = {
   game: Game;
   totalSessions: number;
   lastPlayedAt: string | null;
+  avgDuration: number | null;
   winnerStats: Array<{ player: Player; wins: number; winPercentage: number }>;
   recentSessions: Array<{
     id: string;
     played_at: string;
     winner: Player | null;
+    duration_minutes: number | null;
   }>;
 };
 
@@ -325,7 +328,7 @@ export async function getGameStats(gameId: string): Promise<GameDetailStats | nu
     supabase.from("games").select("*").eq("id", gameId).single(),
     supabase
       .from("game_sessions")
-      .select("id, played_at, winner_id, winner:players!winner_id(*)")
+      .select("id, played_at, winner_id, duration_minutes, winner:players!winner_id(*)")
       .eq("game_id", gameId)
       .order("played_at", { ascending: false }),
     supabase.from("players").select("*").eq("is_active", true),
@@ -350,21 +353,30 @@ export async function getGameStats(gameId: string): Promise<GameDetailStats | nu
     };
   }).sort((a, b) => b.wins - a.wins);
 
+  const durationsWithValue = sessions
+    .map((s) => s.duration_minutes as number | null)
+    .filter((d): d is number => d !== null && d > 0);
+  const avgDuration =
+    durationsWithValue.length > 0
+      ? Math.round(durationsWithValue.reduce((a, b) => a + b, 0) / durationsWithValue.length)
+      : null;
+
   const recentSessions = sessions.slice(0, 10).map((s) => ({
     id: s.id as string,
     played_at: s.played_at as string,
     winner: (s.winner as unknown as Player) ?? null,
+    duration_minutes: (s.duration_minutes as number | null) ?? null,
   }));
 
-  return { game, totalSessions, lastPlayedAt, winnerStats, recentSessions };
+  return { game, totalSessions, lastPlayedAt, avgDuration, winnerStats, recentSessions };
 }
 
 /** Get a game suggestion based on time since last played and variety */
-export async function getGameSuggestion(): Promise<Game[]> {
+export async function getGameSuggestion(playerCount?: number): Promise<Game[]> {
   const supabase = createServerClient();
 
   const [gamesResult, sessionsResult] = await Promise.all([
-    supabase.from("games").select("*"),
+    supabase.from("games").select("*").eq("is_archived", false),
     supabase
       .from("game_sessions")
       .select("game_id, played_at")
@@ -373,8 +385,17 @@ export async function getGameSuggestion(): Promise<Game[]> {
 
   if (gamesResult.error) throw new Error(gamesResult.error.message);
 
-  const games = (gamesResult.data ?? []) as Game[];
+  let games = (gamesResult.data ?? []) as Game[];
   const sessions = sessionsResult.data ?? [];
+
+  // Filter by player count if provided
+  if (playerCount && playerCount > 0) {
+    games = games.filter((g) => {
+      const minOk = !g.min_players || g.min_players <= playerCount;
+      const maxOk = !g.max_players || g.max_players >= playerCount;
+      return minOk && maxOk;
+    });
+  }
 
   // Build map: game_id → last played date
   const lastPlayed = new Map<string, string>();

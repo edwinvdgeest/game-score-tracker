@@ -24,7 +24,7 @@ interface GameDetailClientProps {
 export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) {
   const [editing, setEditing] = useState(false);
 
-  const { game, totalSessions, lastPlayedAt, winnerStats, recentSessions } = stats;
+  const { game, totalSessions, lastPlayedAt, avgDuration, winnerStats, recentSessions } = stats;
 
   const chartData = winnerStats.map((ws) => ({
     name: `${ws.player.emoji} ${ws.player.name}`,
@@ -41,12 +41,31 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
           <h1 className="text-2xl font-black" style={{ color: "var(--foreground)" }}>
             {game.name}
           </h1>
-          <span
-            className="text-xs font-bold px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: "var(--color-warm-gray)", color: "var(--muted-foreground)" }}
-          >
-            {game.category}
-          </span>
+          <div className="flex items-center gap-2 flex-wrap mt-1">
+            <span
+              className="text-xs font-bold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: "var(--color-warm-gray)", color: "var(--muted-foreground)" }}
+            >
+              {game.category}
+            </span>
+            {game.min_players && game.max_players && (
+              <span
+                className="text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: "var(--color-warm-gray)", color: "var(--muted-foreground)" }}
+              >
+                👥 {game.min_players}–{game.max_players}
+              </span>
+            )}
+            {game.difficulty && (
+              <span
+                className="text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: "var(--color-warm-gray)", color: "var(--muted-foreground)" }}
+                title={`Moeilijkheid: ${game.difficulty}/5`}
+              >
+                {"⭐".repeat(game.difficulty)}{"☆".repeat(5 - game.difficulty)}
+              </span>
+            )}
+          </div>
         </div>
         <button
           onClick={() => setEditing(!editing)}
@@ -62,7 +81,7 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
       )}
 
       {/* Stat kaarten */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className={`grid gap-3 ${avgDuration ? "grid-cols-3" : "grid-cols-2"}`}>
         <div
           className="rounded-2xl p-4 text-center"
           style={{ backgroundColor: "var(--color-warm-gray)" }}
@@ -82,9 +101,22 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
             {lastPlayedAt ? formatDate(lastPlayedAt) : "Nooit"}
           </div>
           <div className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>
-            laatste keer gespeeld
+            laatste keer
           </div>
         </div>
+        {avgDuration && (
+          <div
+            className="rounded-2xl p-4 text-center"
+            style={{ backgroundColor: "var(--color-warm-gray)" }}
+          >
+            <div className="text-2xl font-black" style={{ color: "var(--color-coral)" }}>
+              {avgDuration}m
+            </div>
+            <div className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>
+              gem. duur
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Beginner-voordeel */}
@@ -199,11 +231,21 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
                       </div>
                     )}
                   </div>
-                  <div
-                    className="text-xs font-bold"
-                    style={{ color: "var(--muted-foreground)" }}
-                  >
-                    {formatDate(session.played_at)}
+                  <div className="text-right">
+                    <div
+                      className="text-xs font-bold"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      {formatDate(session.played_at)}
+                    </div>
+                    {session.duration_minutes && (
+                      <div
+                        className="text-xs font-semibold"
+                        style={{ color: "var(--muted-foreground)" }}
+                      >
+                        ⏱️ {session.duration_minutes}m
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

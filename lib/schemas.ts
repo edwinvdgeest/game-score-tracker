@@ -34,6 +34,7 @@ export const gameSchema = z.object({
   category: gameCategorySchema,
   min_players: z.number().int(),
   max_players: z.number().int(),
+  difficulty: z.number().int().min(1).max(5).nullable().optional(),
   created_at: z.string(),
   is_favorite: z.boolean().optional().default(false),
   is_archived: z.boolean().optional().default(false),
@@ -55,6 +56,7 @@ export const gameSessionSchema = z.object({
   starter_id: z.string().uuid().nullable(),
   notes: z.string().nullable(),
   marathon_id: z.string().uuid().nullable().optional(),
+  duration_minutes: z.number().int().positive().nullable().optional(),
   created_at: z.string(),
 });
 export type GameSession = z.infer<typeof gameSessionSchema>;
@@ -75,6 +77,7 @@ export const createSessionSchema = z.object({
   played_at: z.string().datetime().optional(),
   notes: z.string().max(500).nullable().optional(),
   marathon_id: z.string().uuid().nullable().optional(),
+  duration_minutes: z.number().int().positive().nullable().optional(),
   scores: z
     .array(
       z.object({
@@ -92,6 +95,7 @@ export const createGameSchema = z.object({
   category: gameCategorySchema,
   min_players: z.number().int().min(1).max(20).optional().default(2),
   max_players: z.number().int().min(1).max(20).optional().default(4),
+  difficulty: z.number().int().min(1).max(5).nullable().optional(),
 });
 export type CreateGameInput = z.infer<typeof createGameSchema>;
 

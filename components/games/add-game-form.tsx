@@ -21,6 +21,14 @@ const categoryDefaultEmoji: Record<GameCategory, string> = {
   overig: "🎮",
 };
 
+const difficultyLabel: Record<number, string> = {
+  1: "Heel makkelijk",
+  2: "Makkelijk",
+  3: "Gemiddeld",
+  4: "Moeilijk",
+  5: "Heel moeilijk",
+};
+
 export function AddGameForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -29,6 +37,9 @@ export function AddGameForm() {
   const [emoji, setEmoji] = useState("🎲");
   const [emojiManuallySet, setEmojiManuallySet] = useState(false);
   const [category, setCategory] = useState<GameCategory>("bordspel");
+  const [difficulty, setDifficulty] = useState<number | null>(null);
+  const [minPlayers, setMinPlayers] = useState<string>("2");
+  const [maxPlayers, setMaxPlayers] = useState<string>("4");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +50,14 @@ export function AddGameForm() {
       const response = await fetch("/api/games", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), emoji, category }),
+        body: JSON.stringify({
+          name: name.trim(),
+          emoji,
+          category,
+          difficulty: difficulty ?? null,
+          min_players: parseInt(minPlayers, 10) || 2,
+          max_players: parseInt(maxPlayers, 10) || 4,
+        }),
       });
 
       if (!response.ok) {
@@ -51,6 +69,9 @@ export function AddGameForm() {
       setEmoji("🎲");
       setEmojiManuallySet(false);
       setCategory("bordspel");
+      setDifficulty(null);
+      setMinPlayers("2");
+      setMaxPlayers("4");
       setOpen(false);
       router.refresh();
     } catch {
@@ -131,6 +152,66 @@ export function AddGameForm() {
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Moeilijkheidsgraad */}
+      <div className="space-y-1">
+        <label className="text-sm font-bold block">Moeilijkheidsgraad</label>
+        <div className="flex items-center gap-1">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              type="button"
+              onClick={() => setDifficulty(difficulty === star ? null : star)}
+              className="text-2xl transition-transform hover:scale-110 cursor-pointer leading-none"
+              aria-label={`${star} ster`}
+            >
+              {star <= (difficulty ?? 0) ? "⭐" : "☆"}
+            </button>
+          ))}
+          {difficulty && (
+            <span className="ml-2 text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              {difficultyLabel[difficulty]}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Aantal spelers */}
+      <div className="space-y-1">
+        <label className="text-sm font-bold block">Aantal spelers</label>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <label htmlFor="game-min-players" className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              Min
+            </label>
+            <input
+              id="game-min-players"
+              type="number"
+              min={1}
+              max={20}
+              value={minPlayers}
+              onChange={(e) => setMinPlayers(e.target.value)}
+              className="w-16 px-2 py-1.5 rounded-xl border font-bold text-sm text-center outline-none focus:border-[var(--color-coral)]"
+            />
+          </div>
+          <span className="text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>–</span>
+          <div className="flex items-center gap-1.5">
+            <label htmlFor="game-max-players" className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              Max
+            </label>
+            <input
+              id="game-max-players"
+              type="number"
+              min={1}
+              max={20}
+              value={maxPlayers}
+              onChange={(e) => setMaxPlayers(e.target.value)}
+              className="w-16 px-2 py-1.5 rounded-xl border font-bold text-sm text-center outline-none focus:border-[var(--color-coral)]"
+            />
+          </div>
+          <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>spelers</span>
+        </div>
       </div>
 
       <div className="flex gap-2">
