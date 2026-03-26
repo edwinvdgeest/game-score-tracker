@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { DarkModeToggle } from "./dark-mode-toggle";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
 
+// PRIMARY_NAV is static; marathon badge is added dynamically in the component
 const PRIMARY_NAV = [
   { href: "/", label: "Loggen", emoji: "🎮" },
   { href: "/dashboard", label: "Scores", emoji: "🏆" },
@@ -22,6 +23,7 @@ const MORE_NAV = [
 
 export function Nav() {
   const pathname = usePathname();
+  const { marathon } = useActiveMarathon();
   const [meerOpen, setMeerOpen] = useState(false);
   const meerRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +53,11 @@ export function Nav() {
     >
       <div className="max-w-md mx-auto flex items-center">
         {PRIMARY_NAV.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            item.href === "/marathon"
+              ? pathname === "/marathon" || pathname.startsWith("/marathon/")
+              : pathname === item.href;
+          const showBadge = item.href === "/marathon" && marathon != null;
           return (
             <Link
               key={item.href}
@@ -61,7 +67,7 @@ export function Nav() {
             >
               <span className="text-2xl mb-0.5 relative">
                 {item.emoji}
-                {"badge" in item && item.badge && (
+                {showBadge && (
                   <span
                     className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2"
                     style={{
