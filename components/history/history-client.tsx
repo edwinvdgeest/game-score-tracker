@@ -180,7 +180,8 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                 <select
                   value={editWinnerId}
                   onChange={(e) => setEditWinnerId(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold bg-[var(--card)]"
+                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
+                  style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
                 >
                   {players.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -194,7 +195,8 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                 <select
                   value={editStarterId}
                   onChange={(e) => setEditStarterId(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold bg-[var(--card)]"
+                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
+                  style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
                 >
                   <option value="">Onbekend</option>
                   {players.map((p) => (
@@ -210,7 +212,8 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
                   type="datetime-local"
                   value={editPlayedAt}
                   onChange={(e) => setEditPlayedAt(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold bg-[var(--card)]"
+                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
+                  style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
                 />
               </div>
               <div className="flex gap-2">

@@ -46,7 +46,7 @@ export function ScoreEntry({
               borderColor: scores[player.id]?.trim()
                 ? "var(--color-coral)"
                 : "var(--border)",
-              backgroundColor: "white",
+              backgroundColor: "var(--card)",
             }}
           >
             <span className="text-2xl">{player.emoji}</span>
@@ -62,7 +62,8 @@ export function ScoreEntry({
                 borderColor: scores[player.id]?.trim()
                   ? "var(--color-coral)"
                   : "var(--border)",
-                backgroundColor: "white",
+                backgroundColor: "var(--muted)",
+                color: "var(--foreground)",
               }}
             />
           </div>

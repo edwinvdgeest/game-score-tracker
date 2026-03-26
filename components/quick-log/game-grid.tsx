@@ -37,7 +37,8 @@ export function GameGrid({ games, selectedGameId, onSelect }: GameGridProps) {
           className="w-full pl-9 pr-8 py-2 rounded-xl border-2 text-sm font-semibold outline-none transition-colors"
           style={{
             borderColor: query ? "var(--color-coral)" : "var(--border)",
-            backgroundColor: "white",
+            backgroundColor: "var(--background)",
+            color: "var(--foreground)",
           }}
         />
         {query && (

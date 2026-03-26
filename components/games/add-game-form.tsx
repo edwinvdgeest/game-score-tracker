@@ -111,6 +111,7 @@ export function AddGameForm() {
           onChange={(e) => setName(e.target.value)}
           placeholder="bijv. Wingspan"
           className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)]"
+          style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
           required
         />
       </div>
@@ -126,6 +127,7 @@ export function AddGameForm() {
           onChange={(e) => { setEmoji(e.target.value); setEmojiManuallySet(true); }}
           placeholder="🎲"
           className="w-full px-3 py-2 rounded-xl border font-semibold text-2xl outline-none focus:border-[var(--color-coral)]"
+          style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
           maxLength={4}
         />
       </div>
@@ -144,7 +146,8 @@ export function AddGameForm() {
               setEmoji(categoryDefaultEmoji[newCat]);
             }
           }}
-          className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)] bg-[var(--card)]"
+          className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)]"
+          style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
         >
           {categories.map((cat) => (
             <option key={cat.value} value={cat.value}>
@@ -193,6 +196,7 @@ export function AddGameForm() {
               value={minPlayers}
               onChange={(e) => setMinPlayers(e.target.value)}
               className="w-16 px-2 py-1.5 rounded-xl border font-bold text-sm text-center outline-none focus:border-[var(--color-coral)]"
+              style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
             />
           </div>
           <span className="text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>–</span>
@@ -208,6 +212,7 @@ export function AddGameForm() {
               value={maxPlayers}
               onChange={(e) => setMaxPlayers(e.target.value)}
               className="w-16 px-2 py-1.5 rounded-xl border font-bold text-sm text-center outline-none focus:border-[var(--color-coral)]"
+              style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
             />
           </div>
           <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>spelers</span>
