@@ -1,4 +1,4 @@
-import { getGames } from "@/lib/queries";
+import { getGamesWithStats } from "@/lib/queries";
 import { GameList } from "@/components/games/game-list";
 import { AddGameForm } from "@/components/games/add-game-form";
 import { SetupBanner } from "@/components/setup-banner";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export default async function GamesPage() {
   try {
-    const games = await getGames();
+    const games = await getGamesWithStats();
 
     return (
       <div className="space-y-6">
@@ -22,7 +22,7 @@ export default async function GamesPage() {
             className="font-semibold"
             style={{ color: "var(--muted-foreground)" }}
           >
-            {games.length} spellen in de lijst
+            {games.filter((g) => !g.is_archived).length} spellen in de lijst
           </p>
         </div>
         <AddGameForm />

@@ -13,12 +13,21 @@ const categories: Array<{ value: GameCategory; label: string }> = [
   { value: "overig", label: "🎯 Overig" },
 ];
 
+const categoryDefaultEmoji: Record<GameCategory, string> = {
+  bordspel: "🎲",
+  kaartspel: "🃏",
+  dobbelspel: "🎯",
+  woordspel: "📝",
+  overig: "🎮",
+};
+
 export function AddGameForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("🎲");
+  const [emojiManuallySet, setEmojiManuallySet] = useState(false);
   const [category, setCategory] = useState<GameCategory>("bordspel");
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,6 +49,7 @@ export function AddGameForm() {
       toast.success(`${emoji} ${name} toegevoegd! 🎉`);
       setName("");
       setEmoji("🎲");
+      setEmojiManuallySet(false);
       setCategory("bordspel");
       setOpen(false);
       router.refresh();
@@ -92,7 +102,7 @@ export function AddGameForm() {
           id="game-emoji"
           type="text"
           value={emoji}
-          onChange={(e) => setEmoji(e.target.value)}
+          onChange={(e) => { setEmoji(e.target.value); setEmojiManuallySet(true); }}
           placeholder="🎲"
           className="w-full px-3 py-2 rounded-xl border font-semibold text-2xl outline-none focus:border-[var(--color-coral)]"
           maxLength={4}
@@ -106,7 +116,13 @@ export function AddGameForm() {
         <select
           id="game-category"
           value={category}
-          onChange={(e) => setCategory(e.target.value as GameCategory)}
+          onChange={(e) => {
+            const newCat = e.target.value as GameCategory;
+            setCategory(newCat);
+            if (!emojiManuallySet) {
+              setEmoji(categoryDefaultEmoji[newCat]);
+            }
+          }}
           className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)] bg-white"
         >
           {categories.map((cat) => (
