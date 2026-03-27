@@ -3,6 +3,23 @@ import { formatShortDate } from "@/lib/utils";
 
 type RecentSession = StatsResponse["recent_sessions"][number];
 
+function ScoreRow({ scores }: { scores: RecentSession["scores"] }) {
+  if (!scores || scores.length === 0) return null;
+  const withScore = scores.filter((s) => s.score !== null);
+  if (withScore.length === 0) return null;
+
+  return (
+    <div
+      className="text-xs font-semibold mt-1 truncate"
+      style={{ color: "var(--muted-foreground)" }}
+    >
+      {withScore
+        .map((s) => `${s.player.name}: ${s.score}`)
+        .join(" · ")}
+    </div>
+  );
+}
+
 interface RecentGamesProps {
   sessions: RecentSession[];
 }
@@ -42,6 +59,7 @@ export function RecentGames({ sessions }: RecentGamesProps) {
               >
                 {formatShortDate(session.played_at)}
               </div>
+              <ScoreRow scores={session.scores} />
             </div>
             <div className="flex items-center gap-1">
               {session.winner ? (
