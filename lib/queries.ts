@@ -713,35 +713,105 @@ export async function getStats(
     .slice(0, 10)
     .map(({ game, count }) => ({ game, play_count: count }));
 
-  const recentSlice = allSessions.slice(0, 10);
+  // Fetch session_players with player data for score computation
+  const sessionIds = allSessions.map((s) => s.id as string);
+  const scoresBySession = new Map<
+    string,
+    Array<{ player: Player; score: number | null }>
+  >();
 
-  // Fetch player scores for recent sessions
-  const recentIds = recentSlice.map((s) => s.id);
-  const { data: recentScoresData } = await supabase
-    .from("session_players")
-    .select("session_id, player_id, score, player:players(name,emoji)")
-    .in("session_id", recentIds);
+  if (sessionIds.length > 0) {
+    const { data: spData } = await supabase
+      .from("session_players")
+      .select("session_id, score, player:players(*)")
+      .in("session_id", sessionIds);
 
-  const recentScoresBySession = new Map<string, StatsResponse["recent_sessions"][number]["player_scores"]>();
-  for (const sp of recentScoresData ?? []) {
-    const p = sp.player as unknown as { name: string; emoji: string } | null;
-    const entry = {
-      player_id: sp.player_id as string,
-      player_name: p?.name ?? "",
-      player_emoji: p?.emoji ?? "",
-      score: sp.score as number | null,
-    };
-    const existing = recentScoresBySession.get(sp.session_id as string) ?? [];
-    existing.push(entry);
-    recentScoresBySession.set(sp.session_id as string, existing);
+    for (const sp of spData ?? []) {
+      const sessionId = sp.session_id as string;
+      const arr = scoresBySession.get(sessionId) ?? [];
+      arr.push({
+        player: sp.player as unknown as Player,
+        score: sp.score as number | null,
+      });
+      scoresBySession.set(sessionId, arr);
+    }
   }
 
-  const recent_sessions = recentSlice.map((s) => ({
+  // Compute score highlights
+  let highestScore: { score: number; player: Player; game: Game } | null = null;
+  const playerScoreSum = new Map<
+    string,
+    { player: Player; sum: number; count: number }
+  >();
+  let biggestDiff: { diff: number; played_at: string; game: Game } | null = null;
+
+  for (const session of allSessions) {
+    const scores = scoresBySession.get(session.id as string) ?? [];
+
+    for (const { player, score } of scores) {
+      if (score === null) continue;
+      if (!highestScore || score > highestScore.score) {
+        highestScore = { score, player, game: session.game as Game };
+      }
+      const existing = playerScoreSum.get(player.id);
+      if (existing) {
+        existing.sum += score;
+        existing.count++;
+      } else {
+        playerScoreSum.set(player.id, { player, sum: score, count: 1 });
+      }
+    }
+
+    const validScores = scores
+      .filter((s) => s.score !== null)
+      .map((s) => s.score as number);
+    if (validScores.length >= 2) {
+      const diff = Math.max(...validScores) - Math.min(...validScores);
+      if (!biggestDiff || diff > biggestDiff.diff) {
+        biggestDiff = {
+          diff,
+          played_at: session.played_at as string,
+          game: session.game as Game,
+        };
+      }
+    }
+  }
+
+  const avg_scores = Array.from(playerScoreSum.values())
+    .map(({ player, sum, count }) => ({
+      player,
+      avg: Math.round((sum / count) * 10) / 10,
+    }))
+    .sort((a, b) => b.avg - a.avg);
+
+  const score_highlights = {
+    highest_score: highestScore,
+    avg_scores,
+    biggest_diff: biggestDiff,
+  };
+
+  // Build score trend: last 20 sessions with at least one score, oldest-first
+  const sessionsWithScores = allSessions
+    .filter((s) =>
+      (scoresBySession.get(s.id as string) ?? []).some(
+        (sp) => sp.score !== null
+      )
+    )
+    .slice(0, 20)
+    .reverse();
+
+  const score_trend = sessionsWithScores.map((s) => ({
+    played_at: s.played_at as string,
+    scores: scoresBySession.get(s.id as string) ?? [],
+  }));
+
+  // Include scores in recent_sessions
+  const recent_sessions = allSessions.slice(0, 10).map((s) => ({
     ...s,
-    player_scores: recentScoresBySession.get(s.id) ?? [],
+    scores: scoresBySession.get(s.id as string) ?? [],
   })) as StatsResponse["recent_sessions"];
 
-  return { leaderboard, top_games, recent_sessions };
+  return { leaderboard, top_games, recent_sessions, score_highlights, score_trend };
 }
 
 // ─── Score statistics ─────────────────────────────────────────────────────────

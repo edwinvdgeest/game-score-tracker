@@ -11,8 +11,22 @@ import { GameFilter } from "./game-filter";
 import { ScoreStats } from "./score-stats";
 import { LazyInView } from "@/components/ui/lazy-in-view";
 import { useDashboardStats } from "@/lib/hooks";
+import { ScoreHighlightsSection } from "./score-highlights";
 
 // Lazy-load heavy chart components — only fetched when in view, no SSR
+const ScoreTrendChart = dynamic(
+  () =>
+    import("./score-trend-chart").then((m) => ({ default: m.ScoreTrendChart })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-2xl border p-4 h-48 flex items-center justify-center text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>
+        Grafiek laden…
+      </div>
+    ),
+  }
+);
+
 const TopGamesChart = dynamic(
   () => import("./top-games-chart").then((m) => ({ default: m.TopGamesChart })),
   {
@@ -74,6 +88,10 @@ export function DashboardClient({ initialStats, games }: DashboardClientProps) {
           </button>
         </div>
       )}
+      {/* Score highlights */}
+      {displayStats.score_highlights && (
+        <ScoreHighlightsSection highlights={displayStats.score_highlights} />
+      )}
       {/* Op tablet: leaderboard + streaks naast elkaar, charts naast elkaar */}
       <div className="md:grid md:grid-cols-2 md:gap-6">
         <div className="space-y-6">
@@ -84,6 +102,12 @@ export function DashboardClient({ initialStats, games }: DashboardClientProps) {
           <LazyInView>
             <TopGamesChart topGames={displayStats.top_games} />
           </LazyInView>
+          {/* Score trend: only shown when a game is filtered */}
+          {gameId && displayStats.score_trend && displayStats.score_trend.length > 0 && (
+            <LazyInView>
+              <ScoreTrendChart trend={displayStats.score_trend} />
+            </LazyInView>
+          )}
           <LazyInView>
             <DayOfWeekChart />
           </LazyInView>

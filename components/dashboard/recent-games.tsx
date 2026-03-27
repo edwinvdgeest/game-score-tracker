@@ -27,8 +27,10 @@ export function RecentGames({ sessions }: RecentGamesProps) {
       <h2 className="text-lg font-extrabold mb-3">🕐 Recente spellen</h2>
       <div className="space-y-2">
         {sessions.map((session) => {
-          const scores = (session.player_scores ?? []).filter((p) => p.score !== null);
-          const sortedScores = [...scores].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+          const scores = session.scores ?? [];
+          const sortedScores = [...scores]
+            .filter((s) => s.score !== null)
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
           const hasScores = sortedScores.length > 0;
 
           return (
@@ -68,18 +70,18 @@ export function RecentGames({ sessions }: RecentGamesProps) {
 
               {hasScores && (
                 <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  {sortedScores.map((p, i) => (
+                  {sortedScores.map((s, i) => (
                     <div
-                      key={p.player_id}
+                      key={s.player.id}
                       className="flex items-center gap-1 px-2 py-0.5 rounded-xl text-xs font-bold"
                       style={{
                         backgroundColor: "var(--color-warm-gray)",
                         color: i === 0 ? "var(--color-coral)" : "var(--muted-foreground)",
                       }}
                     >
-                      <span>{p.player_emoji}</span>
-                      <span>{p.player_name}</span>
-                      <span className="font-black">{p.score}</span>
+                      <span>{s.player.emoji}</span>
+                      <span>{s.player.name}</span>
+                      <span className="font-black">{s.score}</span>
                     </div>
                   ))}
                 </div>
