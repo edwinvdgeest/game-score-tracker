@@ -116,6 +116,14 @@ export const topGameSchema = z.object({
 });
 export type TopGame = z.infer<typeof topGameSchema>;
 
+export const sessionPlayerScoreSchema = z.object({
+  player_id: z.string(),
+  player_name: z.string(),
+  player_emoji: z.string(),
+  score: z.number().int().nullable(),
+});
+export type SessionPlayerScore = z.infer<typeof sessionPlayerScoreSchema>;
+
 export const statsResponseSchema = z.object({
   leaderboard: z.array(playerStatsSchema),
   top_games: z.array(topGameSchema),
@@ -123,6 +131,7 @@ export const statsResponseSchema = z.object({
     gameSessionSchema.extend({
       game: gameSchema,
       winner: playerSchema.nullable(),
+      player_scores: z.array(sessionPlayerScoreSchema).optional(),
     })
   ),
 });

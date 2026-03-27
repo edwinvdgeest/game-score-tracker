@@ -8,6 +8,7 @@ import { Leaderboard } from "./leaderboard";
 import { StreakCards } from "./streak-cards";
 import { RecentGames } from "./recent-games";
 import { GameFilter } from "./game-filter";
+import { ScoreStats } from "./score-stats";
 import { LazyInView } from "@/components/ui/lazy-in-view";
 import { useDashboardStats } from "@/lib/hooks";
 
@@ -88,6 +89,9 @@ export function DashboardClient({ initialStats, games }: DashboardClientProps) {
           </LazyInView>
         </div>
       </div>
+      <LazyInView>
+        <ScoreStats gameId={gameId} period={period} />
+      </LazyInView>
       <RecentGames sessions={displayStats.recent_sessions} />
     </div>
   );
