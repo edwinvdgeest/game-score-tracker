@@ -5,12 +5,19 @@ import { MarathonStartButton } from "@/components/marathon/marathon-start-button
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+interface HomePageProps {
+  searchParams: Promise<{ game?: string }>;
+}
+
+export default async function HomePage({ searchParams }: HomePageProps) {
   try {
-    const [games, players] = await Promise.all([
+    const [games, players, resolvedParams] = await Promise.all([
       getGamesSortedByRecent(),
       getPlayers(),
+      searchParams,
     ]);
+
+    const preselectedGameId = resolvedParams.game;
 
     return (
       <div className="space-y-6">
@@ -26,7 +33,7 @@ export default async function HomePage() {
           </p>
         </div>
         <MarathonStartButton />
-        <SessionForm games={games} players={players} />
+        <SessionForm games={games} players={players} preselectedGameId={preselectedGameId} />
       </div>
     );
   } catch {

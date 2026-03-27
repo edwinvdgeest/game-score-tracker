@@ -20,6 +20,7 @@ const ReactConfetti = dynamic(() => import("react-confetti"), { ssr: false });
 interface SessionFormProps {
   games: Game[];
   players: Player[];
+  preselectedGameId?: string;
 }
 
 type Step = "game" | "starter" | "scores" | "done";
@@ -52,9 +53,10 @@ function computeWinner(
   return tops.length === 1 && solo ? solo.player : null;
 }
 
-export function SessionForm({ games, players }: SessionFormProps) {
-  const [step, setStep] = useState<Step>("game");
-  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+export function SessionForm({ games, players, preselectedGameId }: SessionFormProps) {
+  const preselectedGame = preselectedGameId ? (games.find((g) => g.id === preselectedGameId) ?? null) : null;
+  const [step, setStep] = useState<Step>(preselectedGame ? "starter" : "game");
+  const [selectedGame, setSelectedGame] = useState<Game | null>(preselectedGame);
   const [selectedStarter, setSelectedStarter] = useState<Player | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
   const [duration, setDuration] = useState<number | null>(null);
