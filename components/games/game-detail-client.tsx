@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   BarChart,
   Bar,
@@ -67,12 +68,21 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
             )}
           </div>
         </div>
-        <button
-          onClick={() => setEditing(!editing)}
-          className="px-3 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-[var(--muted)] flex items-center gap-1"
-        >
-          ✏️ Bewerken
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/?game=${game.id}`}
+            className="px-4 py-2 rounded-xl font-black text-sm text-white flex items-center gap-1.5"
+            style={{ backgroundColor: "var(--color-coral)" }}
+          >
+            🎮 Score loggen
+          </Link>
+          <button
+            onClick={() => setEditing(!editing)}
+            className="px-3 py-2 rounded-xl border font-bold text-sm cursor-pointer hover:bg-[var(--muted)] flex items-center gap-1"
+          >
+            ✏️ Bewerken
+          </button>
+        </div>
       </div>
 
       {/* Edit form */}
