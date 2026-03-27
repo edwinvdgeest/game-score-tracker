@@ -814,6 +814,175 @@ export async function getStats(
   return { leaderboard, top_games, recent_sessions, score_highlights, score_trend };
 }
 
+// ─── Score statistics ─────────────────────────────────────────────────────────
+
+export type ScoreStatsResponse = {
+  has_scores: boolean;
+  hall_of_fame: Array<{
+    player: { id: string; name: string; emoji: string };
+    game: { id: string; name: string; emoji: string };
+    score: number;
+    played_at: string;
+  }>;
+  avg_scores: Array<{
+    player: { id: string; name: string; emoji: string };
+    avg_score: number;
+    session_count: number;
+    max_score: number;
+  }>;
+  score_trend: Array<{
+    played_at: string;
+    session_id: string;
+    scores: Array<{ player_id: string; name: string; emoji: string; score: number }>;
+  }>;
+  biggest_margin: {
+    game: { id: string; name: string; emoji: string };
+    played_at: string;
+    margin: number;
+    winner_name: string;
+    winner_emoji: string;
+    scores: Array<{ name: string; emoji: string; score: number }>;
+  } | null;
+};
+
+/** Score-statistieken: Hall of Fame, gemiddelden, verloop en grootste marge */
+export async function getScoreStats(
+  period: PeriodFilter,
+  gameId?: string | null
+): Promise<ScoreStatsResponse> {
+  const supabase = createServerClient();
+  const dateRange = getPeriodDateRange(period);
+
+  let sessionQuery = supabase
+    .from("game_sessions")
+    .select("id, played_at, winner_id, game:games(id,name,emoji), winner:players!winner_id(id,name,emoji)")
+    .order("played_at", { ascending: false });
+
+  if (dateRange) {
+    sessionQuery = sessionQuery.gte("played_at", dateRange.from).lte("played_at", dateRange.to);
+  }
+  if (gameId) {
+    sessionQuery = sessionQuery.eq("game_id", gameId);
+  }
+
+  const { data: sessions, error: sErr } = await sessionQuery;
+  if (sErr) throw new Error(sErr.message);
+
+  const allSessions = sessions ?? [];
+  if (allSessions.length === 0) {
+    return { has_scores: false, hall_of_fame: [], avg_scores: [], score_trend: [], biggest_margin: null };
+  }
+
+  const sessionIds = allSessions.map((s) => s.id);
+  const { data: spData, error: spErr } = await supabase
+    .from("session_players")
+    .select("session_id, player_id, score, player:players(id,name,emoji)")
+    .in("session_id", sessionIds)
+    .not("score", "is", null);
+
+  if (spErr) throw new Error(spErr.message);
+
+  type RawSP = { session_id: string; player_id: string; score: number; player: { id: string; name: string; emoji: string } };
+  const scoredEntries = (spData ?? []) as unknown as RawSP[];
+
+  if (scoredEntries.length === 0) {
+    return { has_scores: false, hall_of_fame: [], avg_scores: [], score_trend: [], biggest_margin: null };
+  }
+
+  type SessionInfo = { id: string; played_at: string; game: { id: string; name: string; emoji: string }; winner: { id: string; name: string; emoji: string } | null };
+  const sessionMap = new Map<string, SessionInfo>(allSessions.map((s) => [s.id, s as unknown as SessionInfo]));
+
+  // === Hall of Fame ===
+  let hallOfFame: ScoreStatsResponse["hall_of_fame"] = [];
+  if (gameId) {
+    // Per player: their personal best for this game
+    const perPlayer = new Map<string, { score: number; player: RawSP["player"]; session: SessionInfo }>();
+    for (const sp of scoredEntries) {
+      const session = sessionMap.get(sp.session_id);
+      if (!session) continue;
+      const existing = perPlayer.get(sp.player_id);
+      if (!existing || sp.score > existing.score) {
+        perPlayer.set(sp.player_id, { score: sp.score, player: sp.player, session });
+      }
+    }
+    hallOfFame = Array.from(perPlayer.values())
+      .sort((a, b) => b.score - a.score)
+      .map(({ player, score, session }) => ({ player, game: session.game, score, played_at: session.played_at }));
+  } else {
+    // Overall top 5 records across all games
+    hallOfFame = [...scoredEntries]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map((sp) => {
+        const session = sessionMap.get(sp.session_id)!;
+        return { player: sp.player, game: session.game, score: sp.score, played_at: session.played_at };
+      });
+  }
+
+  // === Avg scores ===
+  const playerAggMap = new Map<string, { player: RawSP["player"]; scores: number[] }>();
+  for (const sp of scoredEntries) {
+    const existing = playerAggMap.get(sp.player_id);
+    if (existing) {
+      existing.scores.push(sp.score);
+    } else {
+      playerAggMap.set(sp.player_id, { player: sp.player, scores: [sp.score] });
+    }
+  }
+  const avgScores = Array.from(playerAggMap.values())
+    .map(({ player, scores }) => ({
+      player,
+      avg_score: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+      session_count: scores.length,
+      max_score: Math.max(...scores),
+    }))
+    .sort((a, b) => b.avg_score - a.avg_score);
+
+  // === Score trend ===
+  const sessionScoreMap = new Map<string, { played_at: string; scores: Array<{ player_id: string; name: string; emoji: string; score: number }> }>();
+  for (const sp of scoredEntries) {
+    const session = sessionMap.get(sp.session_id);
+    if (!session) continue;
+    const entry = { player_id: sp.player_id, name: sp.player.name, emoji: sp.player.emoji, score: sp.score };
+    const existing = sessionScoreMap.get(sp.session_id);
+    if (existing) {
+      existing.scores.push(entry);
+    } else {
+      sessionScoreMap.set(sp.session_id, { played_at: session.played_at, scores: [entry] });
+    }
+  }
+
+  const scoreTrend = allSessions
+    .filter((s) => sessionScoreMap.has(s.id))
+    .map((s) => ({ played_at: s.played_at, session_id: s.id, scores: sessionScoreMap.get(s.id)!.scores }))
+    .reverse();
+
+  // === Biggest margin ===
+  let biggestMargin: ScoreStatsResponse["biggest_margin"] = null;
+  let maxMargin = 0;
+
+  for (const [sessionId, { played_at, scores }] of sessionScoreMap) {
+    if (scores.length < 2) continue;
+    const sorted = [...scores].sort((a, b) => b.score - a.score);
+    const margin = (sorted[0]?.score ?? 0) - (sorted[sorted.length - 1]?.score ?? 0);
+    if (margin > maxMargin) {
+      maxMargin = margin;
+      const session = sessionMap.get(sessionId)!;
+      const winner = session.winner;
+      biggestMargin = {
+        game: session.game,
+        played_at,
+        margin,
+        winner_name: winner?.name ?? sorted[0]?.name ?? "",
+        winner_emoji: winner?.emoji ?? sorted[0]?.emoji ?? "",
+        scores: sorted,
+      };
+    }
+  }
+
+  return { has_scores: true, hall_of_fame: hallOfFame, avg_scores: avgScores, score_trend: scoreTrend, biggest_margin: biggestMargin };
+}
+
 // ─── Marathon queries ────────────────────────────────────────────────────────
 
 /** Start een nieuwe marathon */

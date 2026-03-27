@@ -3,23 +3,6 @@ import { formatShortDate } from "@/lib/utils";
 
 type RecentSession = StatsResponse["recent_sessions"][number];
 
-function ScoreRow({ scores }: { scores: RecentSession["scores"] }) {
-  if (!scores || scores.length === 0) return null;
-  const withScore = scores.filter((s) => s.score !== null);
-  if (withScore.length === 0) return null;
-
-  return (
-    <div
-      className="text-xs font-semibold mt-1 truncate"
-      style={{ color: "var(--muted-foreground)" }}
-    >
-      {withScore
-        .map((s) => `${s.player.name}: ${s.score}`)
-        .join(" · ")}
-    </div>
-  );
-}
-
 interface RecentGamesProps {
   sessions: RecentSession[];
 }
@@ -43,41 +26,69 @@ export function RecentGames({ sessions }: RecentGamesProps) {
     <div>
       <h2 className="text-lg font-extrabold mb-3">🕐 Recente spellen</h2>
       <div className="space-y-2">
-        {sessions.map((session) => (
-          <div
-            key={session.id}
-            className="flex items-center gap-3 p-3 bg-[var(--card)] rounded-2xl border"
-          >
-            <span className="text-xl">{session.game.emoji}</span>
-            <div className="flex-1 min-w-0">
-              <div className="font-extrabold text-sm truncate">
-                {session.game.name}
+        {sessions.map((session) => {
+          const scores = session.scores ?? [];
+          const sortedScores = [...scores]
+            .filter((s) => s.score !== null)
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+          const hasScores = sortedScores.length > 0;
+
+          return (
+            <div
+              key={session.id}
+              className="p-3 bg-[var(--card)] rounded-2xl border space-y-2"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{session.game.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-extrabold text-sm truncate">
+                    {session.game.name}
+                  </div>
+                  <div
+                    className="text-xs font-semibold"
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    {formatShortDate(session.played_at)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  {session.winner ? (
+                    <>
+                      <span className="text-lg">{session.winner.emoji}</span>
+                      <span className="text-xs font-black">{session.winner.name}</span>
+                    </>
+                  ) : (
+                    <span
+                      className="text-xs font-black"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      🤝 Gelijkspel
+                    </span>
+                  )}
+                </div>
               </div>
-              <div
-                className="text-xs font-semibold"
-                style={{ color: "var(--muted-foreground)" }}
-              >
-                {formatShortDate(session.played_at)}
-              </div>
-              <ScoreRow scores={session.scores} />
-            </div>
-            <div className="flex items-center gap-1">
-              {session.winner ? (
-                <>
-                  <span className="text-lg">{session.winner.emoji}</span>
-                  <span className="text-xs font-black">{session.winner.name}</span>
-                </>
-              ) : (
-                <span
-                  className="text-xs font-black"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  🤝 Gelijkspel
-                </span>
+
+              {hasScores && (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {sortedScores.map((s, i) => (
+                    <div
+                      key={s.player.id}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-xl text-xs font-bold"
+                      style={{
+                        backgroundColor: "var(--color-warm-gray)",
+                        color: i === 0 ? "var(--color-coral)" : "var(--muted-foreground)",
+                      }}
+                    >
+                      <span>{s.player.emoji}</span>
+                      <span>{s.player.name}</span>
+                      <span className="font-black">{s.score}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
