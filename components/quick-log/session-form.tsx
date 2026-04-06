@@ -38,17 +38,21 @@ function vibrate(pattern: number | number[]) {
   }
 }
 
-/** Returns the winning player (highest score), or null on tie / no scores entered */
+/** Returns the winning player, or null on tie / no scores entered.
+ *  When lowestWins is true the player with the lowest score wins. */
 function computeWinner(
   players: Player[],
-  scores: Record<string, string>
+  scores: Record<string, string>,
+  lowestWins = false
 ): Player | null {
   const parsed = players
     .map((p) => ({ player: p, score: parseInt(scores[p.id] ?? "", 10) }))
     .filter((s) => !isNaN(s.score));
   if (parsed.length === 0) return null;
-  const max = Math.max(...parsed.map((s) => s.score));
-  const tops = parsed.filter((s) => s.score === max);
+  const best = lowestWins
+    ? Math.min(...parsed.map((s) => s.score))
+    : Math.max(...parsed.map((s) => s.score));
+  const tops = parsed.filter((s) => s.score === best);
   const solo = tops[0];
   return tops.length === 1 && solo ? solo.player : null;
 }
@@ -156,7 +160,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
       if (!selectedGame) return;
       setSaving(true);
 
-      const computedWinner = computeWinner(activePlayers, scoreValues);
+      const computedWinner = computeWinner(activePlayers, scoreValues, selectedGame.lowest_score_wins ?? false);
       setWinner(computedWinner);
 
       const scoresArray = activePlayers.map((p) => ({
@@ -525,6 +529,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
             saving={saving}
             duration={duration}
             onDurationChange={setDuration}
+            lowestScoreWins={selectedGame?.lowest_score_wins ?? false}
           />
         </>
       )}

@@ -38,6 +38,7 @@ export function AddGameForm() {
   const [emojiManuallySet, setEmojiManuallySet] = useState(false);
   const [category, setCategory] = useState<GameCategory>("bordspel");
   const [difficulty, setDifficulty] = useState<number | null>(null);
+  const [lowestScoreWins, setLowestScoreWins] = useState(false);
   const [minPlayers, setMinPlayers] = useState<string>("2");
   const [maxPlayers, setMaxPlayers] = useState<string>("4");
 
@@ -57,6 +58,7 @@ export function AddGameForm() {
           difficulty: difficulty ?? null,
           min_players: parseInt(minPlayers, 10) || 2,
           max_players: parseInt(maxPlayers, 10) || 4,
+          lowest_score_wins: lowestScoreWins,
         }),
       });
 
@@ -70,6 +72,7 @@ export function AddGameForm() {
       setEmojiManuallySet(false);
       setCategory("bordspel");
       setDifficulty(null);
+      setLowestScoreWins(false);
       setMinPlayers("2");
       setMaxPlayers("4");
       setOpen(false);
@@ -178,6 +181,30 @@ export function AddGameForm() {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Laagste score wint */}
+      <div className="flex items-center justify-between">
+        <label htmlFor="game-lowest-wins" className="text-sm font-bold">
+          Laagste score wint
+          <span className="block text-xs font-semibold mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+            bijv. golf, Uno
+          </span>
+        </label>
+        <button
+          id="game-lowest-wins"
+          type="button"
+          role="switch"
+          aria-checked={lowestScoreWins}
+          onClick={() => setLowestScoreWins((v) => !v)}
+          className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer"
+          style={{ backgroundColor: lowestScoreWins ? "var(--color-coral)" : "var(--border)" }}
+        >
+          <span
+            className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
+            style={{ transform: lowestScoreWins ? "translateX(1.375rem)" : "translateX(0.125rem)" }}
+          />
+        </button>
       </div>
 
       {/* Aantal spelers */}

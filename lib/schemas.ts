@@ -38,6 +38,7 @@ export const gameSchema = z.object({
   created_at: z.string(),
   is_favorite: z.boolean().optional().default(false),
   is_archived: z.boolean().optional().default(false),
+  lowest_score_wins: z.boolean().optional().default(false),
 });
 export type Game = z.infer<typeof gameSchema>;
 
@@ -96,6 +97,7 @@ export const createGameSchema = z.object({
   min_players: z.number().int().min(1).max(20).optional().default(2),
   max_players: z.number().int().min(1).max(20).optional().default(4),
   difficulty: z.number().int().min(1).max(5).nullable().optional(),
+  lowest_score_wins: z.boolean().optional().default(false),
 });
 export type CreateGameInput = z.infer<typeof createGameSchema>;
 

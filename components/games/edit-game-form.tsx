@@ -33,6 +33,7 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
   const [emoji, setEmoji] = useState(game.emoji);
   const [category, setCategory] = useState<GameCategory>(game.category);
   const [difficulty, setDifficulty] = useState<number | null>(game.difficulty ?? null);
+  const [lowestScoreWins, setLowestScoreWins] = useState(game.lowest_score_wins ?? false);
   const [minPlayers, setMinPlayers] = useState<string>(String(game.min_players ?? 2));
   const [maxPlayers, setMaxPlayers] = useState<string>(String(game.max_players ?? 4));
 
@@ -52,6 +53,7 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
           difficulty: difficulty ?? null,
           min_players: parseInt(minPlayers, 10) || 2,
           max_players: parseInt(maxPlayers, 10) || 4,
+          lowest_score_wins: lowestScoreWins,
         }),
       });
 
@@ -144,6 +146,30 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Laagste score wint */}
+      <div className="flex items-center justify-between">
+        <label htmlFor="edit-lowest-wins" className="text-sm font-bold">
+          Laagste score wint
+          <span className="block text-xs font-semibold mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+            bijv. golf, Uno
+          </span>
+        </label>
+        <button
+          id="edit-lowest-wins"
+          type="button"
+          role="switch"
+          aria-checked={lowestScoreWins}
+          onClick={() => setLowestScoreWins((v) => !v)}
+          className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer"
+          style={{ backgroundColor: lowestScoreWins ? "var(--color-coral)" : "var(--border)" }}
+        >
+          <span
+            className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
+            style={{ transform: lowestScoreWins ? "translateX(1.375rem)" : "translateX(0.125rem)" }}
+          />
+        </button>
       </div>
 
       {/* Aantal spelers */}

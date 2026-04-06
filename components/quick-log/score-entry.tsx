@@ -12,6 +12,7 @@ interface ScoreEntryProps {
   saving: boolean;
   duration: number | null;
   onDurationChange: (mins: number | null) => void;
+  lowestScoreWins?: boolean;
 }
 
 export function ScoreEntry({
@@ -22,6 +23,7 @@ export function ScoreEntry({
   saving,
   duration,
   onDurationChange,
+  lowestScoreWins = false,
 }: ScoreEntryProps) {
   const allFilled = players.every(
     (p) => scores[p.id] !== undefined && scores[p.id]!.trim() !== ""
@@ -36,6 +38,17 @@ export function ScoreEntry({
       >
         Vul de scores in — de winnaar wordt automatisch bepaald.
       </p>
+      {lowestScoreWins && (
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-2xl text-sm font-bold mb-4"
+          style={{
+            backgroundColor: "color-mix(in srgb, var(--color-coral) 12%, var(--card))",
+            color: "var(--color-coral)",
+          }}
+        >
+          ⛳ Laagste score wint
+        </div>
+      )}
 
       <div className="space-y-3">
         {players.map((player) => (
