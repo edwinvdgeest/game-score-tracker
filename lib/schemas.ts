@@ -156,7 +156,13 @@ export const statsResponseSchema = z.object({
 });
 export type StatsResponse = z.infer<typeof statsResponseSchema>;
 
-export const periodFilterSchema = z.enum(["all", "this_year", "last_year"]);
+export const periodFilterSchema = z.enum([
+  "today",
+  "this_week",
+  "all",
+  "this_year",
+  "last_year",
+]);
 export type PeriodFilter = z.infer<typeof periodFilterSchema>;
 
 // Marathon types

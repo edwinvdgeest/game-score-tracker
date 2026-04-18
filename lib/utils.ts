@@ -1,6 +1,15 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { format, getYear, startOfYear, endOfYear } from "date-fns";
+import {
+  format,
+  getYear,
+  startOfYear,
+  endOfYear,
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  endOfWeek,
+} from "date-fns";
 import { nl } from "date-fns/locale";
 import type { PeriodFilter } from "@/lib/schemas";
 
@@ -70,6 +79,18 @@ export function getPeriodDateRange(
 ): { from: string; to: string } | null {
   const now = new Date();
   if (period === "all") return null;
+  if (period === "today") {
+    return {
+      from: startOfDay(now).toISOString(),
+      to: endOfDay(now).toISOString(),
+    };
+  }
+  if (period === "this_week") {
+    return {
+      from: startOfWeek(now, { weekStartsOn: 1 }).toISOString(),
+      to: endOfWeek(now, { weekStartsOn: 1 }).toISOString(),
+    };
+  }
   if (period === "this_year") {
     return {
       from: startOfYear(now).toISOString(),
