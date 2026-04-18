@@ -181,6 +181,27 @@ export const createMarathonSchema = z.object({
 });
 export type CreateMarathonInput = z.infer<typeof createMarathonSchema>;
 
+// Hype facts & winner highlights — shared shape
+export const factToneSchema = z.enum(["coral", "mint", "lavender", "yellow"]);
+export type FactTone = z.infer<typeof factToneSchema>;
+
+export const hypeFactSchema = z.object({
+  icon: z.string(),
+  text: z.string(),
+  tone: factToneSchema,
+});
+export type HypeFact = z.infer<typeof hypeFactSchema>;
+
+export const preGameHypeResponseSchema = z.object({
+  facts: z.array(hypeFactSchema),
+});
+export type PreGameHypeResponse = z.infer<typeof preGameHypeResponseSchema>;
+
+export const sessionHighlightsResponseSchema = z.object({
+  highlights: z.array(hypeFactSchema),
+});
+export type SessionHighlightsResponse = z.infer<typeof sessionHighlightsResponseSchema>;
+
 // API input schema for PATCH /api/sessions/[id]
 export const updateSessionSchema = z.object({
   winner_id: z.string().uuid().optional(),

@@ -3,14 +3,23 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { mutate } from "swr";
-import type { Game, Player } from "@/lib/schemas";
+import useSWR, { mutate } from "swr";
+import type {
+  Game,
+  Player,
+  PreGameHypeResponse,
+  SessionHighlightsResponse,
+} from "@/lib/schemas";
 import { GameGrid } from "./game-grid";
 import { StarterPicker } from "./starter-picker";
 import { ScoreEntry } from "./score-entry";
+import { HypeCard } from "./hype-card";
+import { WinnerHighlights } from "./winner-highlights";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
+
+const swrFetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const GUEST_EMOJIS = ["🎭", "🌟", "🎪", "🦋", "🌈", "🎯", "🎨", "🎸", "🌺", "🦊"];
 
@@ -68,6 +77,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
   const [saving, setSaving] = useState(false);
   // undefined = not yet saved; null = saved with tie; Player = saved with winner
   const [winner, setWinner] = useState<Player | null | undefined>(undefined);
+  const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
   // Swipe state
   const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
   const touchStartX = useRef<number | null>(null);
@@ -118,6 +128,35 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
     [localPlayers, activePlayerIds]
   );
 
+  // Sorted player IDs for stable SWR cache keys (volgorde-onafhankelijk)
+  const playerIdsKey = useMemo(
+    () => activePlayers.map((p) => p.id).sort().join(","),
+    [activePlayers]
+  );
+
+  // Pre-game hype: streak, h2h, starter-voordeel, spel-koning
+  const hypeKey =
+    step === "scores" && selectedGame && playerIdsKey
+      ? `/api/pre-game?game_id=${selectedGame.id}&player_ids=${playerIdsKey}${
+          selectedStarter ? `&starter_id=${selectedStarter.id}` : ""
+        }`
+      : null;
+  const { data: hypeData } = useSWR<PreGameHypeResponse>(hypeKey, swrFetcher, {
+    dedupingInterval: 60_000,
+    revalidateOnFocus: false,
+  });
+
+  // Post-session winner highlights
+  const highlightsKey =
+    step === "done" && savedSessionId
+      ? `/api/sessions/${savedSessionId}/highlights`
+      : null;
+  const { data: highlightsData } = useSWR<SessionHighlightsResponse>(
+    highlightsKey,
+    swrFetcher,
+    { revalidateOnFocus: false }
+  );
+
   const togglePlayer = useCallback((playerId: string) => {
     setActivePlayerIds((prev) => {
       const next = new Set(prev);
@@ -153,6 +192,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
     setScores({});
     setDuration(null);
     setWinner(undefined);
+    setSavedSessionId(null);
   }, []);
 
   const handleSave = useCallback(
@@ -186,10 +226,14 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
 
         if (!response.ok) throw new Error("Opslaan mislukt");
 
-        const json = (await response.json()) as { queued?: boolean };
+        const json = (await response.json()) as {
+          queued?: boolean;
+          id?: string;
+        };
         if (json.queued) {
           toast.info("📵 Offline opgeslagen — wordt gesynchroniseerd zodra je online bent.");
         } else {
+          if (json.id) setSavedSessionId(json.id);
           // Invalidate SWR caches so dashboard/history update instantly
           void mutate((key) => typeof key === "string" && key.startsWith("/api/stats"));
           void mutate("/api/sessions");
@@ -206,12 +250,12 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
         setShowConfetti(true);
         setStep("done");
 
-        // Als geen marathon actief: auto-reset na 3.5s
+        // Auto-reset na 5s (alleen als geen marathon actief) — laat highlights even staan
         if (!marathon) {
           setTimeout(() => {
             setShowConfetti(false);
             resetForm();
-          }, 3500);
+          }, 5000);
         }
       } catch {
         toast.error("Oeps! Er ging iets mis. Probeer opnieuw.");
@@ -286,6 +330,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
               {winner.emoji}
             </div>
             <h2 className="text-2xl font-black mb-2">🏆 {winner.name} wint!</h2>
+            <WinnerHighlights highlights={highlightsData?.highlights ?? []} />
           </>
         ) : (
           <>
@@ -521,6 +566,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
                 : "Wie begon?"}
             </button>
           </div>
+          <HypeCard facts={hypeData?.facts ?? []} />
           <ScoreEntry
             players={activePlayers}
             scores={scores}

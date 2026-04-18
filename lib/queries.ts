@@ -12,6 +12,7 @@ import {
 import type {
   Game,
   GameWithStats,
+  HypeFact,
   Marathon,
   Player,
   PlayerStats,
@@ -221,8 +222,10 @@ export async function getGamesSortedByRecent(): Promise<Game[]> {
   });
 }
 
-/** Create a new game session */
-export async function createSession(input: CreateSessionInput): Promise<void> {
+/** Create a new game session. Returns the new session id so the client can fetch highlights. */
+export async function createSession(
+  input: CreateSessionInput
+): Promise<{ id: string }> {
   const supabase = createServerClient();
   const playedAt = input.played_at ?? new Date().toISOString();
   const dayOfWeek = new Date(playedAt).getDay();
@@ -246,10 +249,12 @@ export async function createSession(input: CreateSessionInput): Promise<void> {
     throw new Error(`Failed to create session: ${sessionError.message}`);
   if (!session) throw new Error("No session returned after insert");
 
+  const sessionId = (session as { id: string }).id;
+
   if (input.scores && input.scores.length > 0) {
     const { error: scoresError } = await supabase.from("session_players").insert(
       input.scores.map((s) => ({
-        session_id: (session as { id: string }).id,
+        session_id: sessionId,
         player_id: s.player_id,
         score: s.score ?? null,
       }))
@@ -257,6 +262,8 @@ export async function createSession(input: CreateSessionInput): Promise<void> {
     if (scoresError)
       throw new Error(`Failed to save scores: ${scoresError.message}`);
   }
+
+  return { id: sessionId };
 }
 
 /** Create a new game */
@@ -1164,4 +1171,419 @@ export async function getMarathonHistory(): Promise<MarathonSummary[]> {
       gamesPlayed: Array.from(gamesSet),
     };
   });
+}
+
+// ─── Pre-game hype & post-game highlights ────────────────────────────────────
+
+type PlayerLite = { id: string; name: string; emoji: string };
+
+/** Pre-game hype facts: streak, laatste h2h, starter-voordeel, spel-koning.
+ *  Max 3 feitjes, geprioriteerd op emotionele impact (streak → h2h → starter → king). */
+export async function getPreGameHype(params: {
+  gameId: string;
+  playerIds: string[];
+  starterId?: string | null;
+}): Promise<{ facts: HypeFact[] }> {
+  const { gameId, playerIds, starterId } = params;
+  if (!gameId || playerIds.length === 0) return { facts: [] };
+
+  const supabase = createServerClient();
+  const allPlayerIds = Array.from(
+    new Set([...playerIds, ...(starterId ? [starterId] : [])])
+  );
+
+  const [gameResult, sessionsResult, playersResult] = await Promise.all([
+    supabase
+      .from("games")
+      .select("id, name, emoji")
+      .eq("id", gameId)
+      .single(),
+    supabase
+      .from("game_sessions")
+      .select("id, played_at, winner_id, starter_id")
+      .eq("game_id", gameId)
+      .order("played_at", { ascending: false }),
+    supabase
+      .from("players")
+      .select("id, name, emoji")
+      .in("id", allPlayerIds),
+  ]);
+
+  if (gameResult.error || !gameResult.data) return { facts: [] };
+  if (sessionsResult.error) throw new Error(sessionsResult.error.message);
+  if (playersResult.error) throw new Error(playersResult.error.message);
+
+  const game = gameResult.data as { id: string; name: string; emoji: string };
+  const sessions = (sessionsResult.data ?? []) as Array<{
+    id: string;
+    played_at: string;
+    winner_id: string | null;
+    starter_id: string | null;
+  }>;
+  const playerMap = new Map<string, PlayerLite>();
+  for (const p of (playersResult.data ?? []) as PlayerLite[]) {
+    playerMap.set(p.id, p);
+  }
+
+  // Fetch session_players for h2h lookup (only if 2-player scenario)
+  const sessionPlayers = new Map<
+    string,
+    Array<{ player_id: string; score: number | null }>
+  >();
+  if (playerIds.length === 2 && sessions.length > 0) {
+    const { data: spData } = await supabase
+      .from("session_players")
+      .select("session_id, player_id, score")
+      .in(
+        "session_id",
+        sessions.map((s) => s.id)
+      );
+    for (const sp of (spData ?? []) as Array<{
+      session_id: string;
+      player_id: string;
+      score: number | null;
+    }>) {
+      const arr = sessionPlayers.get(sp.session_id) ?? [];
+      arr.push({ player_id: sp.player_id, score: sp.score });
+      sessionPlayers.set(sp.session_id, arr);
+    }
+  }
+
+  const facts: HypeFact[] = [];
+
+  // 1. Current streak per selected player for this game
+  let topStreakPlayerId: string | null = null;
+  let topStreak = 0;
+  for (const pid of playerIds) {
+    let streak = 0;
+    for (const s of sessions) {
+      if (s.winner_id === pid) streak++;
+      else break;
+    }
+    if (streak >= 2 && streak > topStreak) {
+      topStreak = streak;
+      topStreakPlayerId = pid;
+    }
+  }
+  if (topStreakPlayerId) {
+    const p = playerMap.get(topStreakPlayerId);
+    if (p) {
+      facts.push({
+        icon: "🔥",
+        text: `${p.emoji} ${p.name} staat op ${topStreak}-streak bij ${game.name}`,
+        tone: "coral",
+      });
+    }
+  }
+
+  // 2. Head-to-head laatste ontmoeting (exactly 2 selected players)
+  if (playerIds.length === 2 && facts.length < 3) {
+    const a = playerIds[0]!;
+    const b = playerIds[1]!;
+    for (const s of sessions) {
+      const sp = sessionPlayers.get(s.id);
+      if (!sp) continue;
+      const hasA = sp.some((x) => x.player_id === a);
+      const hasB = sp.some((x) => x.player_id === b);
+      if (!hasA || !hasB) continue;
+      if (s.winner_id === a || s.winner_id === b) {
+        const winnerId = s.winner_id;
+        const loserId = winnerId === a ? b : a;
+        const winner = winnerId ? playerMap.get(winnerId) : null;
+        const wScore = sp.find((x) => x.player_id === winnerId)?.score ?? null;
+        const lScore = sp.find((x) => x.player_id === loserId)?.score ?? null;
+        if (winner) {
+          const diffText =
+            wScore !== null && lScore !== null
+              ? ` met ${Math.abs(wScore - lScore)} punten`
+              : "";
+          facts.push({
+            icon: "⚔️",
+            text: `Vorig potje won ${winner.emoji} ${winner.name}${diffText}`,
+            tone: "lavender",
+          });
+        }
+      }
+      break; // only most recent shared session
+    }
+  }
+
+  // 3. Starter-voordeel
+  if (starterId && facts.length < 3) {
+    const withStarter = sessions.filter((s) => s.starter_id !== null);
+    if (withStarter.length >= 5) {
+      const starterWins = withStarter.filter(
+        (s) => s.winner_id === s.starter_id
+      ).length;
+      const pct = Math.round((starterWins / withStarter.length) * 100);
+      const starter = playerMap.get(starterId);
+      if (starter) {
+        if (pct >= 60) {
+          facts.push({
+            icon: "🎲",
+            text: `${starter.emoji} ${starter.name} begint — starters winnen hier ${pct}% van de tijd`,
+            tone: "mint",
+          });
+        } else if (pct <= 35) {
+          facts.push({
+            icon: "🎲",
+            text: `${starter.emoji} ${starter.name} begint — maar starters winnen hier maar ${pct}%…`,
+            tone: "mint",
+          });
+        }
+      }
+    }
+  }
+
+  // 4. Spel-koning onder de geselecteerde spelers
+  if (facts.length < 3 && sessions.length >= 3) {
+    const winsBySelected = new Map<string, number>();
+    let selectedWinnerTotal = 0;
+    for (const s of sessions) {
+      if (s.winner_id && playerIds.includes(s.winner_id)) {
+        winsBySelected.set(
+          s.winner_id,
+          (winsBySelected.get(s.winner_id) ?? 0) + 1
+        );
+        selectedWinnerTotal++;
+      }
+    }
+    let kingId: string | null = null;
+    let kingWins = 0;
+    for (const [pid, w] of winsBySelected) {
+      if (w > kingWins) {
+        kingWins = w;
+        kingId = pid;
+      }
+    }
+    if (
+      kingId &&
+      kingWins >= 3 &&
+      selectedWinnerTotal > 0 &&
+      kingWins / selectedWinnerTotal >= 0.6 &&
+      kingId !== topStreakPlayerId // avoid duplicate mention with streak fact
+    ) {
+      const king = playerMap.get(kingId);
+      if (king) {
+        facts.push({
+          icon: "👑",
+          text: `${king.emoji} ${king.name} is koning van ${game.name} (${kingWins} wins)`,
+          tone: "yellow",
+        });
+      }
+    }
+  }
+
+  return { facts: facts.slice(0, 3) };
+}
+
+/** Post-session highlights voor de winnaar: mijlpaal, streak, persoonlijk record, h2h. */
+export async function getSessionHighlights(
+  sessionId: string
+): Promise<{ highlights: HypeFact[] }> {
+  const supabase = createServerClient();
+
+  const { data: sessionData, error: sessionError } = await supabase
+    .from("game_sessions")
+    .select(
+      "id, game_id, winner_id, played_at, game:games(id,name,emoji), winner:players!winner_id(id,name,emoji)"
+    )
+    .eq("id", sessionId)
+    .single();
+
+  if (sessionError || !sessionData) return { highlights: [] };
+  const typedSession = sessionData as unknown as {
+    game: PlayerLite;
+    game_id: string;
+    winner_id: string | null;
+    played_at: string;
+    winner: PlayerLite | null;
+  };
+  const winner = typedSession.winner;
+  if (!winner) return { highlights: [] };
+  const game = typedSession.game;
+  const gameId = typedSession.game_id;
+  const playedAt = typedSession.played_at;
+
+  const [gameSessionsResult, recentResult, currentSPResult] = await Promise.all([
+    supabase
+      .from("game_sessions")
+      .select("id, winner_id, played_at")
+      .eq("game_id", gameId)
+      .order("played_at", { ascending: false }),
+    supabase
+      .from("game_sessions")
+      .select("winner_id, played_at")
+      .order("played_at", { ascending: false })
+      .limit(50),
+    supabase
+      .from("session_players")
+      .select("player_id, score")
+      .eq("session_id", sessionId),
+  ]);
+
+  if (gameSessionsResult.error) throw new Error(gameSessionsResult.error.message);
+  if (recentResult.error) throw new Error(recentResult.error.message);
+  if (currentSPResult.error) throw new Error(currentSPResult.error.message);
+
+  const gameSessions = (gameSessionsResult.data ?? []) as Array<{
+    id: string;
+    winner_id: string | null;
+    played_at: string;
+  }>;
+  const recent = (recentResult.data ?? []) as Array<{
+    winner_id: string | null;
+    played_at: string;
+  }>;
+  const currentSP = (currentSPResult.data ?? []) as Array<{
+    player_id: string;
+    score: number | null;
+  }>;
+
+  const winnerScore =
+    currentSP.find((sp) => sp.player_id === winner.id)?.score ?? null;
+  const otherPlayerIds = currentSP
+    .filter((sp) => sp.player_id !== winner.id)
+    .map((sp) => sp.player_id);
+
+  const totalWinsAtGame = gameSessions.filter(
+    (s) => s.winner_id === winner.id
+  ).length;
+
+  // Current streak across all games
+  let currentStreak = 0;
+  for (const s of recent) {
+    if (s.winner_id === winner.id) currentStreak++;
+    else break;
+  }
+
+  // Personal record check — needs ≥2 prior scores to be meaningful
+  let isPersonalRecord = false;
+  if (winnerScore !== null) {
+    const priorSessionIds = gameSessions
+      .filter((s) => s.id !== sessionId)
+      .map((s) => s.id);
+    if (priorSessionIds.length > 0) {
+      const { data: priorSP } = await supabase
+        .from("session_players")
+        .select("score")
+        .eq("player_id", winner.id)
+        .in("session_id", priorSessionIds)
+        .not("score", "is", null);
+      const priorScores = ((priorSP ?? []) as Array<{ score: number | null }>)
+        .map((sp) => sp.score)
+        .filter((s): s is number => s !== null);
+      if (priorScores.length >= 2) {
+        isPersonalRecord = winnerScore > Math.max(...priorScores);
+      }
+    }
+  }
+
+  // H2H year-to-date (only if exactly 1 other player in this session)
+  let h2h: {
+    myWins: number;
+    theirWins: number;
+    otherName: string;
+    otherEmoji: string;
+  } | null = null;
+  if (otherPlayerIds.length === 1) {
+    const otherId = otherPlayerIds[0]!;
+    const yearStart = new Date(
+      new Date(playedAt).getFullYear(),
+      0,
+      1
+    ).toISOString();
+    const { data: yearSessions } = await supabase
+      .from("game_sessions")
+      .select("id, winner_id")
+      .gte("played_at", yearStart);
+    const sessionList = (yearSessions ?? []) as Array<{
+      id: string;
+      winner_id: string | null;
+    }>;
+    if (sessionList.length > 0) {
+      const winnersById = new Map(sessionList.map((s) => [s.id, s.winner_id]));
+      const { data: spInYear } = await supabase
+        .from("session_players")
+        .select("session_id, player_id")
+        .in(
+          "session_id",
+          sessionList.map((s) => s.id)
+        )
+        .in("player_id", [winner.id, otherId]);
+      const participation = new Map<string, Set<string>>();
+      for (const sp of (spInYear ?? []) as Array<{
+        session_id: string;
+        player_id: string;
+      }>) {
+        const set = participation.get(sp.session_id) ?? new Set<string>();
+        set.add(sp.player_id);
+        participation.set(sp.session_id, set);
+      }
+      let myWins = 0;
+      let theirWins = 0;
+      for (const [sid, parts] of participation) {
+        if (parts.has(winner.id) && parts.has(otherId)) {
+          const w = winnersById.get(sid);
+          if (w === winner.id) myWins++;
+          else if (w === otherId) theirWins++;
+        }
+      }
+      if (myWins + theirWins >= 3) {
+        const { data: otherData } = await supabase
+          .from("players")
+          .select("name, emoji")
+          .eq("id", otherId)
+          .single();
+        if (otherData) {
+          h2h = {
+            myWins,
+            theirWins,
+            otherName: (otherData as { name: string }).name,
+            otherEmoji: (otherData as { emoji: string }).emoji,
+          };
+        }
+      }
+    }
+  }
+
+  const highlights: HypeFact[] = [];
+  const milestones = new Set([1, 5, 10, 25, 50, 100]);
+
+  if (milestones.has(totalWinsAtGame)) {
+    highlights.push({
+      icon: "🏆",
+      text:
+        totalWinsAtGame === 1
+          ? `Eerste win bij ${game.name}!`
+          : `${totalWinsAtGame}e win bij ${game.name}!`,
+      tone: "yellow",
+    });
+  }
+
+  if (currentStreak >= 2) {
+    highlights.push({
+      icon: "🔥",
+      text: `${currentStreak}e win op rij!`,
+      tone: "coral",
+    });
+  }
+
+  if (isPersonalRecord && winnerScore !== null) {
+    highlights.push({
+      icon: "🎯",
+      text: `Persoonlijk record bij ${game.name}: ${winnerScore}!`,
+      tone: "mint",
+    });
+  }
+
+  if (h2h && highlights.length < 3) {
+    highlights.push({
+      icon: "⚔️",
+      text: `Nu ${h2h.myWins}-${h2h.theirWins} tegen ${h2h.otherEmoji} ${h2h.otherName} dit jaar`,
+      tone: "lavender",
+    });
+  }
+
+  return { highlights: highlights.slice(0, 3) };
 }
