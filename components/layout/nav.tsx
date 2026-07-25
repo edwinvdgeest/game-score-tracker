@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { DarkModeToggle } from "./dark-mode-toggle";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
@@ -28,18 +28,16 @@ export function Nav() {
   const pathname = usePathname();
   const { marathon } = useActiveMarathon();
   const [meerOpen, setMeerOpen] = useState(false);
-  const meerRef = useRef<HTMLDivElement>(null);
 
-  // Sluit het menu als je buiten klikt
+  // Sluit het menu met Escape (buiten-tappen gaat via de overlay hieronder —
+  // een document-level mousedown-listener is onbetrouwbaar op touch)
   useEffect(() => {
     if (!meerOpen) return;
-    const handle = (e: MouseEvent) => {
-      if (meerRef.current && !meerRef.current.contains(e.target as Node)) {
-        setMeerOpen(false);
-      }
+    const handle = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMeerOpen(false);
     };
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
+    document.addEventListener("keydown", handle);
+    return () => document.removeEventListener("keydown", handle);
   }, [meerOpen]);
 
   // Sluit het menu bij routewijziging
@@ -53,9 +51,20 @@ export function Nav() {
     <>
       {/* ── Mobile: vaste balk onderaan ── */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 border-t z-50"
+        className="md:hidden fixed bottom-0 left-0 right-0 border-t z-50 pb-[env(safe-area-inset-bottom)] touch-manipulation"
         style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
       >
+        {/* Tap-overlay: sluit het "Meer"-menu bij een tap ergens anders.
+            Zit binnen de nav (z-50) maar achter de balk, dus boven alle pagina-inhoud. */}
+        {meerOpen && (
+          <button
+            type="button"
+            aria-label="Menu sluiten"
+            onClick={() => setMeerOpen(false)}
+            className="fixed inset-0 -z-10 cursor-default"
+          />
+        )}
+
         <div className="flex items-center">
           {PRIMARY_NAV.map((item) => {
             const isActive =
@@ -88,8 +97,11 @@ export function Nav() {
           })}
 
           {/* Meer knop met popover */}
-          <div ref={meerRef} className="flex-1 relative">
+          <div className="flex-1 relative">
             <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={meerOpen}
               onClick={() => setMeerOpen((v) => !v)}
               className="w-full flex flex-col items-center py-3 text-xs font-bold transition-colors cursor-pointer"
               style={{ color: meerActive || meerOpen ? "var(--color-coral)" : "var(--muted-foreground)" }}
@@ -98,10 +110,11 @@ export function Nav() {
               Meer
             </button>
 
-            {/* Popover — opent omhoog */}
+            {/* Popover — opent omhoog, boven de tap-overlay */}
             {meerOpen && (
               <div
-                className="absolute bottom-full right-0 mb-2 rounded-2xl border shadow-lg overflow-hidden min-w-[160px]"
+                role="menu"
+                className="absolute bottom-full right-0 mb-2 z-10 rounded-2xl border shadow-lg overflow-hidden min-w-[160px]"
                 style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
               >
                 {MORE_NAV.map((item) => {
@@ -110,6 +123,9 @@ export function Nav() {
                     <Link
                       key={item.href}
                       href={item.href}
+                      role="menuitem"
+                      // Sluit ook als je de al-actieve route tapt (dan verandert pathname niet)
+                      onClick={() => setMeerOpen(false)}
                       className={cn(
                         "flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors",
                         isActive ? "font-extrabold" : "hover:bg-[var(--muted)]"
@@ -140,7 +156,7 @@ export function Nav() {
 
       {/* ── Tablet/desktop: zijbalk links ── */}
       <nav
-        className="hidden md:flex flex-col fixed top-0 left-0 bottom-0 w-52 border-r z-50 py-6"
+        className="hidden md:flex flex-col fixed top-0 left-0 bottom-0 w-52 border-r z-50 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)]"
         style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
       >
         {/* App naam */}

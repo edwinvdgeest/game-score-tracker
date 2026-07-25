@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Nunito } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/layout/nav";
@@ -35,6 +35,15 @@ export const metadata: Metadata = {
   },
 };
 
+// viewport-fit=cover maakt env(safe-area-inset-*) bruikbaar. Zonder dit blijven die
+// insets 0 en valt de onderste navigatiebalk achter de home-indicator / browserbalk,
+// waardoor taps op de knoppen onderaan niet aankomen.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -42,7 +51,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="nl" className={nunito.variable} suppressHydrationWarning>
-      <body className="min-h-screen antialiased pb-20 md:pb-0 md:pl-52" style={{ backgroundColor: "var(--background)" }}>
+      <body
+        className="min-h-screen antialiased pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-52"
+        style={{ backgroundColor: "var(--background)" }}
+      >
         <ThemeProvider>
           <Nav />
           <MarathonBanner />
