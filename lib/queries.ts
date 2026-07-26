@@ -21,7 +21,8 @@ import type {
   CreateGameInput,
   UpdateSessionInput,
   CreateMarathonInput,
-  CreateGuestPlayerInput,
+  CreatePlayerInput,
+  UpdatePlayerInput,
   SessionBadge,
 } from "@/lib/schemas";
 
@@ -38,33 +39,82 @@ export async function getPlayers(): Promise<Player[]> {
   return (data ?? []) as Player[];
 }
 
-/** Maak een gastspeler aan */
-export async function createGuestPlayer(input: CreateGuestPlayerInput): Promise<Player> {
-  const supabase = createServerClient();
-  const { data, error } = await supabase
-    .from("players")
-    .insert({ name: input.name, emoji: input.emoji, is_guest: true, is_active: true })
-    .select()
-    .single();
-  if (error) throw new Error(`Failed to create guest player: ${error.message}`);
-  if (!data) throw new Error("No player returned after insert");
-  return data as Player;
-}
-
-/** Fetch alle gastspelers (actief + inactief) */
-export async function getGuestPlayers(): Promise<Player[]> {
+/** Alle spelers, inclusief inactieve — alleen voor de beheerpagina */
+export async function getAllPlayers(): Promise<Player[]> {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("players")
     .select("*")
-    .eq("is_guest", true)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(`Failed to fetch guest players: ${error.message}`);
+    .order("is_guest")
+    .order("name");
+  if (error) throw new Error(`Failed to fetch players: ${error.message}`);
   return (data ?? []) as Player[];
 }
 
-/** Deactiveer een gastspeler (als ze in sessies voorkomen) of verwijder ze */
-export async function deleteOrDeactivateGuestPlayer(id: string): Promise<void> {
+/** Maak een speler aan. Zonder is_guest is het een vaste speler. */
+export async function createPlayer(input: CreatePlayerInput): Promise<Player> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("players")
+    .insert({
+      name: input.name,
+      emoji: input.emoji,
+      is_guest: input.is_guest ?? false,
+      include_by_default: input.include_by_default ?? false,
+      is_active: true,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to create player: ${error.message}`);
+  if (!data) throw new Error("No player returned after insert");
+  return data as Player;
+}
+
+/** Wijzig naam, emoji, actief-status of standaard-deelname van een speler */
+export async function updatePlayer(
+  id: string,
+  input: UpdatePlayerInput
+): Promise<Player> {
+  const supabase = createServerClient();
+  const updates: Record<string, unknown> = {};
+  if (input.name !== undefined) updates.name = input.name;
+  if (input.emoji !== undefined) updates.emoji = input.emoji;
+  if (input.is_active !== undefined) updates.is_active = input.is_active;
+  if (input.include_by_default !== undefined)
+    updates.include_by_default = input.include_by_default;
+
+  if (Object.keys(updates).length === 0) {
+    const { data, error } = await supabase
+      .from("players")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error) throw new Error(`Failed to fetch player: ${error.message}`);
+    return data as Player;
+  }
+
+  const { data, error } = await supabase
+    .from("players")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to update player: ${error.message}`);
+  if (!data) throw new Error("No player returned after update");
+  return data as Player;
+}
+
+/**
+ * Deactiveer een speler die in sessies voorkomt, of verwijder hem als dat niet zo is.
+ *
+ * Deactiveren beschermt de historie: session_players.player_id heeft ON DELETE RESTRICT,
+ * dus een speler met potjes weggooien zou de database weigeren.
+ *
+ * Voorheen zat hier een .eq("is_guest", true) op zowel de update als de delete. Bij een
+ * vaste speler matchte dat nul rijen, gaf Supabase geen error, en retourneerde de API
+ * gewoon 204 zonder dat er iets gebeurde.
+ */
+export async function deleteOrDeactivatePlayer(id: string): Promise<void> {
   const supabase = createServerClient();
 
   // Check of de speler in sessies voorkomt
@@ -74,21 +124,14 @@ export async function deleteOrDeactivateGuestPlayer(id: string): Promise<void> {
     .eq("player_id", id);
 
   if ((count ?? 0) > 0) {
-    // Deactiveer
     const { error } = await supabase
       .from("players")
       .update({ is_active: false })
-      .eq("id", id)
-      .eq("is_guest", true);
-    if (error) throw new Error(`Failed to deactivate guest: ${error.message}`);
+      .eq("id", id);
+    if (error) throw new Error(`Failed to deactivate player: ${error.message}`);
   } else {
-    // Verwijder permanent
-    const { error } = await supabase
-      .from("players")
-      .delete()
-      .eq("id", id)
-      .eq("is_guest", true);
-    if (error) throw new Error(`Failed to delete guest: ${error.message}`);
+    const { error } = await supabase.from("players").delete().eq("id", id);
+    if (error) throw new Error(`Failed to delete player: ${error.message}`);
   }
 }
 

@@ -16,6 +16,7 @@ function player(id: string, over: Partial<Player> = {}): Player {
     emoji: "🎯",
     is_active: true,
     is_guest: false,
+    include_by_default: true,
     created_at: "2025-01-01T00:00:00.000Z",
     ...over,
   };

@@ -76,10 +76,15 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
   // Lokale spelerslijst: vaste spelers + gastspelers die deze sessie zijn toegevoegd
   const [localPlayers, setLocalPlayers] = useState<Player[]>(players);
 
-  // Default: everyone except Minou
-  const [activePlayerIds, setActivePlayerIds] = useState<Set<string>>(
-    () => new Set(players.filter((p) => p.name !== "Minou").map((p) => p.id))
-  );
+  // Wie staat standaard aangevinkt? Dat komt uit players.include_by_default, te beheren
+  // op /players. Als niemand die vlag heeft (verse database, of iedereen uitgezet in de
+  // beheerpagina) vallen we terug op alle vaste spelers — anders kun je geen potje meer
+  // loggen omdat er nul deelnemers geselecteerd staan.
+  const [activePlayerIds, setActivePlayerIds] = useState<Set<string>>(() => {
+    const byDefault = players.filter((p) => p.include_by_default);
+    const initial = byDefault.length > 0 ? byDefault : players.filter((p) => !p.is_guest);
+    return new Set(initial.map((p) => p.id));
+  });
 
   // Gast-formulier staat
   const [showGuestForm, setShowGuestForm] = useState(false);
@@ -95,7 +100,8 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
       const res = await fetch("/api/players", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, emoji: guestEmoji }),
+        // is_guest expliciet: POST /api/players maakt standaard een vaste speler aan.
+        body: JSON.stringify({ name, emoji: guestEmoji, is_guest: true }),
       });
       if (!res.ok) throw new Error("Aanmaken mislukt");
       const newPlayer = (await res.json()) as Player;

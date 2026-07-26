@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { getPlayers, createGuestPlayer } from "@/lib/queries";
-import { createGuestPlayerSchema } from "@/lib/schemas";
+import { getPlayers, getAllPlayers, createPlayer } from "@/lib/queries";
+import { createPlayerSchema } from "@/lib/schemas";
 import { ZodError } from "zod";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const players = await getPlayers();
+    // ?include_inactive=1 is voor de beheerpagina; de rest van de app wil alleen de
+    // spelers die nog meedoen.
+    const { searchParams } = new URL(request.url);
+    const includeInactive = searchParams.get("include_inactive") === "1";
+    const players = includeInactive ? await getAllPlayers() : await getPlayers();
     return NextResponse.json(players);
   } catch (error) {
     return NextResponse.json(
@@ -18,8 +22,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as unknown;
-    const input = createGuestPlayerSchema.parse(body);
-    const player = await createGuestPlayer(input);
+    const input = createPlayerSchema.parse(body);
+    const player = await createPlayer(input);
     return NextResponse.json(player, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {

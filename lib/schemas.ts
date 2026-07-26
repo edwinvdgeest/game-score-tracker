@@ -17,15 +17,28 @@ export const playerSchema = z.object({
   emoji: z.string(),
   is_active: z.boolean(),
   is_guest: z.boolean().default(false),
+  // Staat deze speler standaard aangevinkt bij een nieuw potje? Losstaand van is_active:
+  // een speler die af en toe meedoet is actief maar niet standaard aangevinkt.
+  include_by_default: z.boolean().default(false),
   created_at: z.string(),
 });
 export type Player = z.infer<typeof playerSchema>;
 
-export const createGuestPlayerSchema = z.object({
+export const createPlayerSchema = z.object({
   name: z.string().min(1).max(50),
-  emoji: z.string().min(1).max(10).default("🎭"),
+  emoji: z.string().min(1).max(10).default("🎲"),
+  is_guest: z.boolean().optional().default(false),
+  include_by_default: z.boolean().optional().default(false),
 });
-export type CreateGuestPlayerInput = z.infer<typeof createGuestPlayerSchema>;
+export type CreatePlayerInput = z.infer<typeof createPlayerSchema>;
+
+export const updatePlayerSchema = z.object({
+  name: z.string().min(1).max(50).optional(),
+  emoji: z.string().min(1).max(10).optional(),
+  is_active: z.boolean().optional(),
+  include_by_default: z.boolean().optional(),
+});
+export type UpdatePlayerInput = z.infer<typeof updatePlayerSchema>;
 
 export const gameSchema = z.object({
   id: z.string().uuid(),
