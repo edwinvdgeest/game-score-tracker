@@ -1,6 +1,8 @@
 import { createServerClient } from "@/lib/supabase/server";
 import {
   calculateAchievements,
+  type Achievement,
+  type AchievementContext,
   type AchievementSession,
   type PlayerAchievements,
 } from "@/lib/achievements";
@@ -24,6 +26,7 @@ import type {
   UpdateSessionInput,
   CreateMarathonInput,
   CreateGuestPlayerInput,
+  SessionBadge,
 } from "@/lib/schemas";
 
 /** Fetch all active players (inclusief gastspelers) */
@@ -551,54 +554,126 @@ export async function getDayOfWeekStats(): Promise<{
   return { stats, players };
 }
 
-/** Get achievements for all active players */
-export async function getPlayerAchievements(): Promise<PlayerAchievements[]> {
+/** Alle data die de badge-berekening nodig heeft, in één keer opgehaald */
+async function loadAchievementData(): Promise<{
+  sessions: AchievementSession[];
+  players: Player[];
+  ctx: AchievementContext;
+}> {
   const supabase = createServerClient();
 
-  const [sessionsResult, sessionPlayersResult, playersResult] = await Promise.all([
-    supabase
-      .from("game_sessions")
-      .select("id, played_at, game_id, winner_id")
-      .order("played_at", { ascending: true }),
-    supabase.from("session_players").select("session_id, player_id"),
-    supabase.from("players").select("*").eq("is_active", true),
-  ]);
+  const [sessionsResult, sessionPlayersResult, playersResult, gamesResult] =
+    await Promise.all([
+      supabase
+        .from("game_sessions")
+        .select(
+          "id, played_at, game_id, winner_id, starter_id, marathon_id, duration_minutes"
+        )
+        .order("played_at", { ascending: true }),
+      supabase.from("session_players").select("session_id, player_id, score"),
+      supabase.from("players").select("*"),
+      supabase.from("games").select("id, category, difficulty, lowest_score_wins"),
+    ]);
 
   if (sessionsResult.error) throw new Error(sessionsResult.error.message);
   if (sessionPlayersResult.error) throw new Error(sessionPlayersResult.error.message);
   if (playersResult.error) throw new Error(playersResult.error.message);
+  if (gamesResult.error) throw new Error(gamesResult.error.message);
 
-  const rawSessions = sessionsResult.data ?? [];
-  const sessionPlayers = sessionPlayersResult.data ?? [];
-  const players = (playersResult.data ?? []) as Player[];
+  const rawSessions = (sessionsResult.data ?? []) as Array<{
+    id: string;
+    played_at: string;
+    game_id: string;
+    winner_id: string | null;
+    starter_id: string | null;
+    marathon_id: string | null;
+    duration_minutes: number | null;
+  }>;
+  const sessionPlayers = (sessionPlayersResult.data ?? []) as Array<{
+    session_id: string;
+    player_id: string;
+    score: number | null;
+  }>;
+  const allPlayers = (playersResult.data ?? []) as Player[];
+  const games = (gamesResult.data ?? []) as Array<{
+    id: string;
+    category: string | null;
+    difficulty: number | null;
+    lowest_score_wins: boolean | null;
+  }>;
 
-  // Build map session_id → player IDs
+  const gameMap = new Map(games.map((g) => [g.id, g]));
+
+  // Build maps session_id → player IDs / scores
   const sessionPlayerMap = new Map<string, string[]>();
+  const sessionScoreMap = new Map<string, Record<string, number | null>>();
   for (const sp of sessionPlayers) {
-    const arr = sessionPlayerMap.get(sp.session_id as string) ?? [];
-    arr.push(sp.player_id as string);
-    sessionPlayerMap.set(sp.session_id as string, arr);
+    const arr = sessionPlayerMap.get(sp.session_id) ?? [];
+    arr.push(sp.player_id);
+    sessionPlayerMap.set(sp.session_id, arr);
+    const scores = sessionScoreMap.get(sp.session_id) ?? {};
+    scores[sp.player_id] = sp.score;
+    sessionScoreMap.set(sp.session_id, scores);
   }
 
+  const activePlayers = allPlayers.filter((p) => p.is_active);
+
   // Build AchievementSession objects
-  // If session_players is empty for a session, assume all active players participated
-  const allPlayerIds = players.map((p) => p.id);
-  const achievementSessions: AchievementSession[] = rawSessions.map((s) => ({
-    id: s.id as string,
-    played_at: s.played_at as string,
-    game_id: s.game_id as string,
-    winner_id: s.winner_id as string,
-    players: sessionPlayerMap.get(s.id as string) ?? allPlayerIds,
-  }));
+  // If session_players is empty for a session (oude imports), assume the regular
+  // players participated — gasten zaten daar nog niet bij
+  const fallbackPlayerIds = activePlayers
+    .filter((p) => !p.is_guest)
+    .map((p) => p.id);
+  const sessions: AchievementSession[] = rawSessions.map((s) => {
+    const game = gameMap.get(s.game_id);
+    return {
+      id: s.id,
+      played_at: s.played_at,
+      game_id: s.game_id,
+      winner_id: s.winner_id,
+      starter_id: s.starter_id,
+      marathon_id: s.marathon_id,
+      duration_minutes: s.duration_minutes,
+      game_category: game?.category ?? null,
+      game_difficulty: game?.difficulty ?? null,
+      lowest_score_wins: game?.lowest_score_wins ?? false,
+      players: sessionPlayerMap.get(s.id) ?? fallbackPlayerIds,
+      scores: sessionScoreMap.get(s.id) ?? {},
+    };
+  });
+
+  return {
+    sessions,
+    players: activePlayers,
+    ctx: {
+      guestPlayerIds: allPlayers.filter((p) => p.is_guest).map((p) => p.id),
+    },
+  };
+}
+
+/** Get achievements for all active players */
+export async function getPlayerAchievements(): Promise<PlayerAchievements[]> {
+  const { sessions, players, ctx } = await loadAchievementData();
 
   return players.map((player) => {
-    const achievements = calculateAchievements(achievementSessions, player.id);
+    const achievements = calculateAchievements(sessions, player.id, ctx);
     return {
       player,
       achievements,
       earnedCount: achievements.filter((a) => a.earnedAt !== null).length,
     };
   });
+}
+
+/** Badges die de speler precies in deze sessie heeft ontgrendeld */
+async function getBadgesUnlockedInSession(
+  playerId: string,
+  playedAt: string
+): Promise<Achievement[]> {
+  const { sessions, ctx } = await loadAchievementData();
+  return calculateAchievements(sessions, playerId, ctx).filter(
+    (a) => a.earnedAt === playedAt
+  );
 }
 
 /** Starter advantage stat per game */
@@ -1377,10 +1452,11 @@ export async function getPreGameHype(params: {
   return { facts: facts.slice(0, 3) };
 }
 
-/** Post-session highlights voor de winnaar: mijlpaal, streak, persoonlijk record, h2h. */
+/** Post-session highlights voor de winnaar: mijlpaal, streak, persoonlijk record, h2h,
+ *  plus de badges die deze sessie zijn ontgrendeld. */
 export async function getSessionHighlights(
   sessionId: string
-): Promise<{ highlights: HypeFact[] }> {
+): Promise<{ highlights: HypeFact[]; newBadges: SessionBadge[] }> {
   const supabase = createServerClient();
 
   const { data: sessionData, error: sessionError } = await supabase
@@ -1391,7 +1467,7 @@ export async function getSessionHighlights(
     .eq("id", sessionId)
     .single();
 
-  if (sessionError || !sessionData) return { highlights: [] };
+  if (sessionError || !sessionData) return { highlights: [], newBadges: [] };
   const typedSession = sessionData as unknown as {
     game: PlayerLite;
     game_id: string;
@@ -1400,7 +1476,7 @@ export async function getSessionHighlights(
     winner: PlayerLite | null;
   };
   const winner = typedSession.winner;
-  if (!winner) return { highlights: [] };
+  if (!winner) return { highlights: [], newBadges: [] };
   const game = typedSession.game;
   const gameId = typedSession.game_id;
   const playedAt = typedSession.played_at;
@@ -1585,5 +1661,14 @@ export async function getSessionHighlights(
     });
   }
 
-  return { highlights: highlights.slice(0, 3) };
+  const unlocked = await getBadgesUnlockedInSession(winner.id, playedAt);
+  const newBadges: SessionBadge[] = unlocked.map((a) => ({
+    id: a.id,
+    emoji: a.emoji,
+    name: a.name,
+    description: a.description,
+    tier: a.tier,
+  }));
+
+  return { highlights: highlights.slice(0, 3), newBadges };
 }

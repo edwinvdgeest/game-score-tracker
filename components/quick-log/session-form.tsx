@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import useSWR, { mutate } from "swr";
@@ -15,6 +15,8 @@ import { StarterPicker } from "./starter-picker";
 import { ScoreEntry } from "./score-entry";
 import { HypeCard } from "./hype-card";
 import { WinnerHighlights } from "./winner-highlights";
+import { BadgeUnlock } from "./badge-unlock";
+import { FinalScores } from "./final-scores";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
@@ -22,6 +24,9 @@ import { useActiveMarathon } from "@/lib/hooks/useMarathon";
 const swrFetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const GUEST_EMOJIS = ["🎭", "🌟", "🎪", "🦋", "🌈", "🎯", "🎨", "🎸", "🌺", "🦊"];
+
+/** Hoe lang de winnaar + stats blijven staan voordat het formulier reset */
+const AUTO_RESET_SECONDS = 25;
 
 // Dynamically load confetti to avoid SSR issues
 const ReactConfetti = dynamic(() => import("react-confetti"), { ssr: false });
@@ -78,6 +83,8 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
   // undefined = not yet saved; null = saved with tie; Player = saved with winner
   const [winner, setWinner] = useState<Player | null | undefined>(undefined);
   const [savedSessionId, setSavedSessionId] = useState<string | null>(null);
+  // null = geen aftimer (marathon of gepauzeerd door de speler)
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   // Swipe state
   const [slideDir, setSlideDir] = useState<"left" | "right" | null>(null);
   const touchStartX = useRef<number | null>(null);
@@ -193,7 +200,31 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
     setDuration(null);
     setWinner(undefined);
     setSavedSessionId(null);
+    setSecondsLeft(null);
   }, []);
+
+  /** Aftimer op het eindscherm — elke tik één seconde, 0 = terug naar spelkeuze */
+  useEffect(() => {
+    if (secondsLeft === null) return;
+    if (secondsLeft <= 0) {
+      setShowConfetti(false);
+      resetForm();
+      return;
+    }
+    const timer = setTimeout(
+      () => setSecondsLeft((s) => (s === null ? null : s - 1)),
+      1000
+    );
+    return () => clearTimeout(timer);
+  }, [secondsLeft, resetForm]);
+
+  /** Speler wil de stats langer bekijken: aftimer stoppen */
+  const pauseAutoReset = useCallback(() => setSecondsLeft(null), []);
+
+  const startNextGame = useCallback(() => {
+    setShowConfetti(false);
+    resetForm();
+  }, [resetForm]);
 
   const handleSave = useCallback(
     async (scoreValues: Record<string, string>) => {
@@ -250,13 +281,9 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
         setShowConfetti(true);
         setStep("done");
 
-        // Auto-reset na 5s (alleen als geen marathon actief) — laat highlights even staan
-        if (!marathon) {
-          setTimeout(() => {
-            setShowConfetti(false);
-            resetForm();
-          }, 5000);
-        }
+        // Winnaar + stats blijven staan; buiten marathon telt een zichtbare
+        // aftimer af die de speler kan pauzeren
+        if (!marathon) setSecondsLeft(AUTO_RESET_SECONDS);
       } catch {
         toast.error("Oeps! Er ging iets mis. Probeer opnieuw.");
         setWinner(undefined);
@@ -264,7 +291,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
         setSaving(false);
       }
     },
-    [selectedGame, selectedStarter, activePlayers, marathon, duration, resetForm]
+    [selectedGame, selectedStarter, activePlayers, marathon, duration]
   );
 
   const handleScoreChange = useCallback((playerId: string, value: string) => {
@@ -316,7 +343,10 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
 
   if (step === "done" && selectedGame) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+      <div
+        className="flex flex-col items-center justify-center py-8 text-center space-y-4"
+        onPointerDown={pauseAutoReset}
+      >
         {showConfetti && (
           <ReactConfetti
             recycle={false}
@@ -330,7 +360,6 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
               {winner.emoji}
             </div>
             <h2 className="text-2xl font-black mb-2">🏆 {winner.name} wint!</h2>
-            <WinnerHighlights highlights={highlightsData?.highlights ?? []} />
           </>
         ) : (
           <>
@@ -344,27 +373,65 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
           {selectedGame.emoji} {selectedGame.name}
         </p>
 
-        {/* Marathon-knoppen: Volgende spel of terug naar scorebord */}
-        {marathon && (
-          <div className="w-full space-y-2 pt-2">
-            <button
-              onClick={() => {
-                setShowConfetti(false);
-                resetForm();
-              }}
-              className="w-full py-3.5 rounded-2xl font-black text-white text-base"
-              style={{ backgroundColor: "var(--color-coral)" }}
+        <FinalScores
+          players={activePlayers}
+          scores={scores}
+          winnerId={winner?.id ?? null}
+          lowestScoreWins={selectedGame.lowest_score_wins ?? false}
+        />
+
+        {winner && (
+          <>
+            <WinnerHighlights highlights={highlightsData?.highlights ?? []} />
+            <BadgeUnlock badges={highlightsData?.newBadges ?? []} />
+          </>
+        )}
+
+        {/* Volgende spel of doorklikken naar de stats */}
+        <div className="w-full space-y-2 pt-2">
+          <button
+            onClick={startNextGame}
+            className="w-full py-3.5 rounded-2xl font-black text-white text-base cursor-pointer"
+            style={{ backgroundColor: "var(--color-coral)" }}
+          >
+            🎮 {marathon ? "Volgende spel" : "Nog een potje"}
+          </button>
+          <Link
+            href={marathon ? "/marathon" : "/dashboard"}
+            className="flex items-center justify-center w-full py-3 rounded-2xl font-bold border-2 text-sm"
+            style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+          >
+            {marathon ? "🏁 Naar scorebord" : "📊 Naar statistieken"}
+          </Link>
+        </div>
+
+        {/* Aftimer — tik om de stats te laten staan */}
+        {secondsLeft !== null && (
+          <button
+            onClick={pauseAutoReset}
+            className="w-full max-w-xs space-y-1.5 cursor-pointer"
+            aria-label="Aftimer pauzeren"
+          >
+            <div
+              className="h-1 w-full rounded-full overflow-hidden"
+              style={{ backgroundColor: "var(--border)" }}
             >
-              🎮 Volgende spel
-            </button>
-            <Link
-              href="/marathon"
-              className="flex items-center justify-center w-full py-3 rounded-2xl font-bold border-2 text-sm"
-              style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${(secondsLeft / AUTO_RESET_SECONDS) * 100}%`,
+                  backgroundColor: "var(--color-coral)",
+                  transition: "width 1s linear",
+                }}
+              />
+            </div>
+            <span
+              className="block text-xs font-semibold"
+              style={{ color: "var(--muted-foreground)" }}
             >
-              🏁 Naar scorebord
-            </Link>
-          </div>
+              Terug naar spelkeuze in {secondsLeft}s — tik om te blijven kijken
+            </span>
+          </button>
         )}
       </div>
     );

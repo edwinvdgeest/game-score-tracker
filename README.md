@@ -43,6 +43,15 @@ Verwachte CSV-kolommen: `Datum, Game, Winnaar, Beginner, Score Edwin, Score Lisa
 
 Het script slaat dubbele rijen automatisch over op basis van datum + spel.
 
+## Badges testen
+
+De badge-logica (`lib/achievements.ts`) heeft een zelftest op verzonnen sessies — handig na het
+toevoegen van een nieuwe badge, geen database nodig:
+
+```bash
+npx tsx scripts/test-achievements.ts
+```
+
 ## Deployen naar Vercel
 
 1. Push naar GitHub
@@ -57,6 +66,7 @@ Het script slaat dubbele rijen automatisch over op basis van datum + spel.
 | Quick Log | `/` | Game kiezen → winnaar → confetti 🎉 |
 | Scorebord | `/dashboard` | Leaderboard, streaks, grafieken |
 | Spellen | `/games` | Lijst beheren, nieuw spel toevoegen |
+| Badges | `/achievements` | 40 badges per speler, gegroepeerd per categorie |
 
 ## Tech Stack
 

@@ -197,8 +197,19 @@ export const preGameHypeResponseSchema = z.object({
 });
 export type PreGameHypeResponse = z.infer<typeof preGameHypeResponseSchema>;
 
+// Badge die direct na een sessie is ontgrendeld
+export const sessionBadgeSchema = z.object({
+  id: z.string(),
+  emoji: z.string(),
+  name: z.string(),
+  description: z.string(),
+  tier: z.enum(["bronze", "silver", "gold"]),
+});
+export type SessionBadge = z.infer<typeof sessionBadgeSchema>;
+
 export const sessionHighlightsResponseSchema = z.object({
   highlights: z.array(hypeFactSchema),
+  newBadges: z.array(sessionBadgeSchema),
 });
 export type SessionHighlightsResponse = z.infer<typeof sessionHighlightsResponseSchema>;
 
