@@ -366,6 +366,7 @@ export type GameDetailStats = {
     played_at: string;
     winner: Player | null;
     duration_minutes: number | null;
+    notes: string | null;
   }>;
 };
 
@@ -377,7 +378,9 @@ export async function getGameStats(gameId: string): Promise<GameDetailStats | nu
     supabase.from("games").select("*").eq("id", gameId).single(),
     supabase
       .from("game_sessions")
-      .select("id, played_at, winner_id, duration_minutes, winner:players!winner_id(*)")
+      .select(
+        "id, played_at, winner_id, duration_minutes, notes, winner:players!winner_id(*)"
+      )
       .eq("game_id", gameId)
       .order("played_at", { ascending: false }),
     supabase.from("players").select("*").eq("is_active", true),
@@ -415,6 +418,7 @@ export async function getGameStats(gameId: string): Promise<GameDetailStats | nu
     played_at: s.played_at as string,
     winner: (s.winner as unknown as Player) ?? null,
     duration_minutes: (s.duration_minutes as number | null) ?? null,
+    notes: (s.notes as string | null) ?? null,
   }));
 
   return { game, totalSessions, lastPlayedAt, avgDuration, winnerStats, recentSessions };
@@ -498,6 +502,65 @@ export async function getAllSessions(): Promise<SessionDetail[]> {
     .order("played_at", { ascending: false });
   if (error) throw new Error(`Failed to fetch sessions: ${error.message}`);
   return (data ?? []) as unknown as SessionDetail[];
+}
+
+// ─── Herinneringen ────────────────────────────────────────────────────────────
+
+export type Memory = {
+  /** Hoeveel jaar geleden dit potje gespeeld werd. */
+  yearsAgo: number;
+  sessions: SessionDetail[];
+};
+
+/** Hoeveel dagen rond dezelfde kalenderdag we meenemen, zodat de kaart niet vaak leeg is. */
+const MEMORY_WINDOW_DAYS = 3;
+/** Hoeveel jaar terug we zoeken voordat we opgeven. */
+const MEMORY_MAX_YEARS_BACK = 3;
+
+/**
+ * Potjes van rond deze dag in een eerder jaar.
+ *
+ * Zoekt eerst één jaar terug, dan twee, dan drie, en stopt bij de eerste treffer. Geen
+ * treffer betekent null — de aanroeper rendert dan niets, want de app toont geen
+ * placeholder-data.
+ *
+ * `reference` bestaat om dit testbaar en handmatig controleerbaar te maken op een dag
+ * waarvan je weet dat er data is. De server draait in UTC en het huishouden in
+ * Europe/Amsterdam; met een venster van ±3 dagen maakt dat niets uit.
+ */
+export async function getMemories(reference?: Date): Promise<Memory | null> {
+  const supabase = createServerClient();
+  const base = reference ?? new Date();
+
+  for (let yearsAgo = 1; yearsAgo <= MEMORY_MAX_YEARS_BACK; yearsAgo++) {
+    const target = new Date(base);
+    target.setFullYear(target.getFullYear() - yearsAgo);
+
+    const from = new Date(target);
+    from.setDate(from.getDate() - MEMORY_WINDOW_DAYS);
+    from.setHours(0, 0, 0, 0);
+
+    const to = new Date(target);
+    to.setDate(to.getDate() + MEMORY_WINDOW_DAYS);
+    to.setHours(23, 59, 59, 999);
+
+    const { data, error } = await supabase
+      .from("game_sessions")
+      .select(
+        "id, played_at, day_of_week, winner_id, starter_id, notes, game:games(*), winner:players!winner_id(*), scores:session_players(player:players(*), score)"
+      )
+      .gte("played_at", from.toISOString())
+      .lte("played_at", to.toISOString())
+      .order("played_at", { ascending: false })
+      .limit(3);
+
+    if (error) throw new Error(`Failed to fetch memories: ${error.message}`);
+
+    const sessions = (data ?? []) as unknown as SessionDetail[];
+    if (sessions.length > 0) return { yearsAgo, sessions };
+  }
+
+  return null;
 }
 
 /** Update an existing session */

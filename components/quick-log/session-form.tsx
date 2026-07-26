@@ -60,6 +60,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
   const [selectedStarter, setSelectedStarter] = useState<Player | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
   const [duration, setDuration] = useState<number | null>(null);
+  const [note, setNote] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
   const [saving, setSaving] = useState(false);
   // undefined = not yet saved; null = saved with tie; Player = saved with winner
@@ -186,6 +187,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
     setSelectedStarter(null);
     setScores({});
     setDuration(null);
+    setNote("");
     setWinner(undefined);
     setSavedSessionId(null);
     setSecondsLeft(null);
@@ -243,6 +245,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
             scores: scoresArray,
             marathon_id: marathon?.id ?? null,
             duration_minutes: duration ?? null,
+            notes: note.trim() || null,
           }),
         });
 
@@ -282,7 +285,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
         setSaving(false);
       }
     },
-    [selectedGame, selectedStarter, activePlayers, marathon, duration]
+    [selectedGame, selectedStarter, activePlayers, marathon, duration, note]
   );
 
   const handleScoreChange = useCallback((playerId: string, value: string) => {
@@ -633,6 +636,8 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
             saving={saving}
             duration={duration}
             onDurationChange={setDuration}
+            note={note}
+            onNoteChange={setNote}
             lowestScoreWins={selectedGame?.lowest_score_wins ?? false}
           />
         </>

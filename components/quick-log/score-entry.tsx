@@ -4,6 +4,9 @@ import type { Player } from "@/lib/schemas";
 
 const DURATION_PRESETS = [15, 30, 45, 60, 90, 120];
 
+/** Moet matchen met createSessionSchema.notes (.max(500)), anders krijg je een 400. */
+const NOTE_MAX_LENGTH = 500;
+
 interface ScoreEntryProps {
   players: Player[];
   scores: Record<string, string>;
@@ -12,6 +15,8 @@ interface ScoreEntryProps {
   saving: boolean;
   duration: number | null;
   onDurationChange: (mins: number | null) => void;
+  note: string;
+  onNoteChange: (value: string) => void;
   lowestScoreWins?: boolean;
 }
 
@@ -23,6 +28,8 @@ export function ScoreEntry({
   saving,
   duration,
   onDurationChange,
+  note,
+  onNoteChange,
   lowestScoreWins = false,
 }: ScoreEntryProps) {
   const allFilled = players.every(
@@ -129,6 +136,43 @@ export function ScoreEntry({
             }}
           />
         </div>
+      </div>
+
+      {/* Notitie (optioneel).
+          De swipe-handler voor de wizard-stappen zit op een bovenliggende div. Tekst
+          selecteren in een textarea is een horizontale sleep, en die zou je naar de
+          vorige stap gooien — daarom stopt deze wrapper de touch-events. */}
+      <div
+        className="mt-5 space-y-2"
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+      >
+        <label
+          htmlFor="session-note"
+          className="block text-xs font-bold uppercase tracking-wide"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          📝 Notitie <span className="normal-case font-semibold">(optioneel)</span>
+        </label>
+        <textarea
+          id="session-note"
+          value={note}
+          onChange={(e) => onNoteChange(e.target.value)}
+          maxLength={NOTE_MAX_LENGTH}
+          rows={2}
+          placeholder="Bijzonderheden, gedenkwaardige zetten, wie er mopperde…"
+          className="w-full px-3 py-2 rounded-2xl border-2 font-semibold text-base outline-none transition-colors resize-y"
+          style={{
+            borderColor: note.trim() ? "var(--color-coral)" : "var(--border)",
+            backgroundColor: "var(--card)",
+            color: "var(--foreground)",
+          }}
+        />
+        {note.length > NOTE_MAX_LENGTH - 50 && (
+          <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+            {NOTE_MAX_LENGTH - note.length} tekens over
+          </p>
+        )}
       </div>
 
       <div className="mt-5">

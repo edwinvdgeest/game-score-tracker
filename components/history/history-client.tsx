@@ -28,6 +28,7 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
   /** Deelnemers van de sessie die bewerkt wordt, met hun score als tekst. */
   const [editParticipants, setEditParticipants] = useState<Player[]>([]);
   const [editScores, setEditScores] = useState<Record<string, string>>({});
+  const [editNote, setEditNote] = useState("");
 
   function startEdit(session: SessionDetail) {
     setEditingId(session.id);
@@ -39,6 +40,8 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
       .toISOString()
       .slice(0, 16);
     setEditPlayedAt(local);
+
+    setEditNote(session.notes ?? "");
 
     const participants = session.scores.map((entry) => entry.player);
     setEditParticipants(participants);
@@ -82,6 +85,7 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
         winner_id: effectiveWinnerId,
         starter_id: editStarterId || null,
         played_at: new Date(editPlayedAt).toISOString(),
+        notes: editNote.trim() || null,
       };
       // Scores meesturen vervangt de deelnemersset, dus alleen doen als we die set
       // kennen — en dan altijd volledig, inclusief de lege scores.
@@ -120,6 +124,7 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
                 winner,
                 starter_id: editStarterId || null,
                 played_at: new Date(editPlayedAt).toISOString(),
+                notes: editNote.trim() || null,
                 scores:
                   editParticipants.length > 0
                     ? editParticipants.map((p) => ({
@@ -250,6 +255,16 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
             </div>
           )}
 
+          {/* Notitie */}
+          {session.notes && (
+            <div
+              className="px-3 pb-3 md:px-4 text-xs font-semibold italic"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              📝 {session.notes}
+            </div>
+          )}
+
           {/* Edit form */}
           {editingId === session.id && (
             <div
@@ -350,6 +365,18 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
                   value={editPlayedAt}
                   onChange={(e) => setEditPlayedAt(e.target.value)}
                   className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
+                  style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold">📝 Notitie</label>
+                <textarea
+                  value={editNote}
+                  onChange={(e) => setEditNote(e.target.value)}
+                  maxLength={500}
+                  rows={2}
+                  placeholder="Bijzonderheden van dit potje…"
+                  className="w-full rounded-xl border px-3 py-2 text-base font-semibold resize-y"
                   style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
                 />
               </div>
