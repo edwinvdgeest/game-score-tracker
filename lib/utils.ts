@@ -33,16 +33,32 @@ export function getDayOfWeek(date: Date): number {
 }
 
 /**
+ * A session as the streak helpers see it. `player_ids` is optional so callers that only
+ * pass sessions the player took part in keep working; when it is present, sessions the
+ * player sat out are skipped instead of breaking the streak.
+ */
+type StreakSession = { winner_id: string | null; player_ids?: string[] };
+
+/** Did the player take part? Sessions without participation data count as "yes". */
+function tookPart(session: StreakSession, playerId: string): boolean {
+  return session.player_ids ? session.player_ids.includes(playerId) : true;
+}
+
+/**
  * Calculate current win streak for a player.
  * sessions must be sorted by played_at DESC (newest first).
  * Returns number of consecutive wins at the start of the list.
+ *
+ * A session the player did not take part in is skipped, not counted as a loss — sitting
+ * out someone else's game does not end your streak.
  */
 export function calculateCurrentStreak(
-  sessions: Array<{ winner_id: string | null }>,
+  sessions: StreakSession[],
   playerId: string
 ): number {
   let streak = 0;
   for (const session of sessions) {
+    if (!tookPart(session, playerId)) continue;
     if (session.winner_id === playerId) {
       streak++;
     } else {
@@ -55,14 +71,17 @@ export function calculateCurrentStreak(
 /**
  * Calculate longest win streak for a player from a list of all sessions.
  * sessions must be sorted by played_at ASC (oldest first).
+ *
+ * Sessions the player sat out are skipped, same as in calculateCurrentStreak.
  */
 export function calculateLongestStreak(
-  sessions: Array<{ winner_id: string | null }>,
+  sessions: StreakSession[],
   playerId: string
 ): number {
   let longest = 0;
   let current = 0;
   for (const session of sessions) {
+    if (!tookPart(session, playerId)) continue;
     if (session.winner_id === playerId) {
       current++;
       if (current > longest) longest = current;

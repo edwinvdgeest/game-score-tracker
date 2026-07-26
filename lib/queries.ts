@@ -6,18 +6,14 @@ import {
   type AchievementSession,
   type PlayerAchievements,
 } from "@/lib/achievements";
-import {
-  calculateCurrentStreak,
-  calculateLongestStreak,
-  getPeriodDateRange,
-} from "@/lib/utils";
+import { getPeriodDateRange } from "@/lib/utils";
+import { computeLeaderboard, type StatSession } from "@/lib/stats";
 import type {
   Game,
   GameWithStats,
   HypeFact,
   Marathon,
   Player,
-  PlayerStats,
   TopGame,
   StatsResponse,
   PeriodFilter,
@@ -525,7 +521,13 @@ export async function getDayOfWeekStats(): Promise<{
   const supabase = createServerClient();
   const [sessionsResult, playersResult] = await Promise.all([
     supabase.from("game_sessions").select("day_of_week, winner_id"),
-    supabase.from("players").select("*").eq("is_active", true),
+    // Gasten blijven hier buiten, net als in het hoofd-leaderboard: een gast met
+    // één toevallige zaterdagwinst hoort geen eigen regel in de weekdag-chart.
+    supabase
+      .from("players")
+      .select("*")
+      .eq("is_active", true)
+      .eq("is_guest", false),
   ]);
 
   if (sessionsResult.error) throw new Error(sessionsResult.error.message);
@@ -544,10 +546,13 @@ export async function getDayOfWeekStats(): Promise<{
 
   for (const session of sessions) {
     const day = session.day_of_week as number;
-    const winnerId = session.winner_id as string;
+    const winnerId = session.winner_id as string | null;
     const dayStat = stats[day];
     if (!dayStat) continue;
+    // Een gelijkspel is een gespeelde avond, maar levert niemand een win op. Zonder deze
+    // guard belandde het onder de letterlijke sleutel "null".
     dayStat.sessions++;
+    if (!winnerId) continue;
     dayStat.winsByPlayer[winnerId] = (dayStat.winsByPlayer[winnerId] ?? 0) + 1;
   }
 
@@ -618,12 +623,13 @@ async function loadAchievementData(): Promise<{
 
   const activePlayers = allPlayers.filter((p) => p.is_active);
 
-  // Build AchievementSession objects
-  // If session_players is empty for a session (oude imports), assume the regular
-  // players participated — gasten zaten daar nog niet bij
-  const fallbackPlayerIds = activePlayers
-    .filter((p) => !p.is_guest)
-    .map((p) => p.id);
+  // Build AchievementSession objects.
+  //
+  // Er is hier bewust geen fallback voor sessies zonder session_players-rijen. Die
+  // fallback ("neem aan dat de vaste spelers meededen") liet het toevoegen van een
+  // nieuwe vaste speler retroactief de badges van iedereen veranderen, omdat die speler
+  // dan aan elke rijloze historische sessie werd toegevoegd. Migratie 009 vult de
+  // ontbrekende rijen eenmalig aan; daarna is de deelname een feit in de database.
   const sessions: AchievementSession[] = rawSessions.map((s) => {
     const game = gameMap.get(s.game_id);
     return {
@@ -637,7 +643,7 @@ async function loadAchievementData(): Promise<{
       game_category: game?.category ?? null,
       game_difficulty: game?.difficulty ?? null,
       lowest_score_wins: game?.lowest_score_wins ?? false,
-      players: sessionPlayerMap.get(s.id) ?? fallbackPlayerIds,
+      players: sessionPlayerMap.get(s.id) ?? [],
       scores: sessionScoreMap.get(s.id) ?? {},
     };
   });
@@ -730,8 +736,9 @@ export async function getStats(
 
   const [sessionsResult, playersResult] = await Promise.all([
     sessionQuery,
-    // Gasten worden uitgesloten van het hoofd-leaderboard
-    supabase.from("players").select("*").eq("is_active", true).eq("is_guest", false),
+    // Alle spelers, inclusief gasten: die krijgen hun eigen blok onder het
+    // hoofd-leaderboard (zie guest_leaderboard hieronder).
+    supabase.from("players").select("*").eq("is_active", true),
   ]);
 
   if (sessionsResult.error)
@@ -742,41 +749,57 @@ export async function getStats(
   const allSessions = sessionsResult.data ?? [];
   const allPlayers = (playersResult.data ?? []) as Player[];
 
-  // Calculate leaderboard
-  const leaderboard: PlayerStats[] = allPlayers.map((player) => {
-    const wins = allSessions.filter(
-      (s) => (s.winner_id as string) === player.id
-    ).length;
+  // Fetch session_players eerst: wie meedeed bepaalt het leaderboard, en dezelfde data
+  // levert verderop de scores voor de highlights. Dit hoeft dus geen extra query te zijn.
+  const sessionIds = allSessions.map((s) => s.id as string);
+  const scoresBySession = new Map<
+    string,
+    Array<{ player: Player; score: number | null }>
+  >();
 
-    // MVP approximation: all sessions count as total_games.
-    // Edwin & Lisanne play every session; accurate per-player counts
-    // would require joining session_players.
-    const total_games = allSessions.length;
+  if (sessionIds.length > 0) {
+    const { data: spData, error: spError } = await supabase
+      .from("session_players")
+      .select("session_id, score, player:players(*)")
+      .in("session_id", sessionIds);
 
-    const currentStreak = calculateCurrentStreak(
-      allSessions.map((s) => ({ winner_id: s.winner_id as string })),
-      player.id
-    );
-    const longestStreak = calculateLongestStreak(
-      [...allSessions]
-        .reverse()
-        .map((s) => ({ winner_id: s.winner_id as string })),
-      player.id
-    );
+    if (spError)
+      throw new Error(`Failed to fetch session players: ${spError.message}`);
 
-    return {
-      player,
-      wins,
-      total_games,
-      win_percentage:
-        total_games > 0 ? Math.round((wins / total_games) * 100) : 0,
-      current_streak: currentStreak,
-      longest_streak: longestStreak,
-    };
-  });
+    for (const sp of spData ?? []) {
+      const sessionId = sp.session_id as string;
+      const arr = scoresBySession.get(sessionId) ?? [];
+      arr.push({
+        player: sp.player as unknown as Player,
+        score: sp.score as number | null,
+      });
+      scoresBySession.set(sessionId, arr);
+    }
+  }
 
-  // Sort leaderboard by wins descending
-  leaderboard.sort((a, b) => b.wins - a.wins);
+  // Sessies in de vorm die lib/stats.ts verwacht — nieuwste eerst, met de werkelijke
+  // deelnemers per potje.
+  const statSessions: StatSession[] = allSessions.map((s) => ({
+    id: s.id as string,
+    played_at: s.played_at as string,
+    winner_id: s.winner_id as string | null,
+    player_ids: (scoresBySession.get(s.id as string) ?? []).map(
+      (entry) => entry.player.id
+    ),
+  }));
+
+  const leaderboard = computeLeaderboard(
+    statSessions,
+    allPlayers.filter((p) => !p.is_guest)
+  );
+
+  // Gasten staan apart: /guests belooft expliciet dat ze niet in het hoofd-leaderboard
+  // meetellen, en een gast met één gewonnen potje zou daar bovenaan belanden. Alleen
+  // gasten die in deze periode daadwerkelijk speelden.
+  const guest_leaderboard = computeLeaderboard(
+    statSessions,
+    allPlayers.filter((p) => p.is_guest)
+  ).filter((entry) => entry.total_games > 0);
 
   // Calculate top games by play count
   const gamePlayCounts = new Map<string, { game: Game; count: number }>();
@@ -794,30 +817,6 @@ export async function getStats(
     .sort((a, b) => b.count - a.count)
     .slice(0, 10)
     .map(({ game, count }) => ({ game, play_count: count }));
-
-  // Fetch session_players with player data for score computation
-  const sessionIds = allSessions.map((s) => s.id as string);
-  const scoresBySession = new Map<
-    string,
-    Array<{ player: Player; score: number | null }>
-  >();
-
-  if (sessionIds.length > 0) {
-    const { data: spData } = await supabase
-      .from("session_players")
-      .select("session_id, score, player:players(*)")
-      .in("session_id", sessionIds);
-
-    for (const sp of spData ?? []) {
-      const sessionId = sp.session_id as string;
-      const arr = scoresBySession.get(sessionId) ?? [];
-      arr.push({
-        player: sp.player as unknown as Player,
-        score: sp.score as number | null,
-      });
-      scoresBySession.set(sessionId, arr);
-    }
-  }
 
   // Compute score highlights
   let highestScore: { score: number; player: Player; game: Game } | null = null;
@@ -893,7 +892,14 @@ export async function getStats(
     scores: scoresBySession.get(s.id as string) ?? [],
   })) as StatsResponse["recent_sessions"];
 
-  return { leaderboard, top_games, recent_sessions, score_highlights, score_trend };
+  return {
+    leaderboard,
+    guest_leaderboard,
+    top_games,
+    recent_sessions,
+    score_highlights,
+    score_trend,
+  };
 }
 
 // ─── Score statistics ─────────────────────────────────────────────────────────

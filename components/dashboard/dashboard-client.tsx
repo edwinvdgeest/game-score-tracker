@@ -95,7 +95,10 @@ export function DashboardClient({ initialStats, games }: DashboardClientProps) {
       {/* Op tablet: leaderboard + streaks naast elkaar, charts naast elkaar */}
       <div className="md:grid md:grid-cols-2 md:gap-6">
         <div className="space-y-6">
-          <Leaderboard leaderboard={displayStats.leaderboard} />
+          <Leaderboard
+            leaderboard={displayStats.leaderboard}
+            guestLeaderboard={displayStats.guest_leaderboard}
+          />
           <StreakCards leaderboard={displayStats.leaderboard} />
         </div>
         <div className="space-y-6 mt-6 md:mt-0">

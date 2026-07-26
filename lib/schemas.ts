@@ -143,6 +143,9 @@ export const scoreTrendEntrySchema = z.object({
 
 export const statsResponseSchema = z.object({
   leaderboard: z.array(playerStatsSchema),
+  // Gasten staan apart van het hoofd-leaderboard, en alleen als ze in deze periode
+  // daadwerkelijk gespeeld hebben.
+  guest_leaderboard: z.array(playerStatsSchema).optional(),
   top_games: z.array(topGameSchema),
   recent_sessions: z.array(
     gameSessionSchema.extend({

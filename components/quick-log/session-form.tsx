@@ -18,6 +18,7 @@ import { WinnerHighlights } from "./winner-highlights";
 import { BadgeUnlock } from "./badge-unlock";
 import { FinalScores } from "./final-scores";
 import { cn } from "@/lib/utils";
+import { computeWinner, parseScoreEntries } from "@/lib/stats";
 import { toast } from "sonner";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
 
@@ -50,25 +51,6 @@ function vibrate(pattern: number | number[]) {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
     navigator.vibrate(pattern);
   }
-}
-
-/** Returns the winning player, or null on tie / no scores entered.
- *  When lowestWins is true the player with the lowest score wins. */
-function computeWinner(
-  players: Player[],
-  scores: Record<string, string>,
-  lowestWins = false
-): Player | null {
-  const parsed = players
-    .map((p) => ({ player: p, score: parseInt(scores[p.id] ?? "", 10) }))
-    .filter((s) => !isNaN(s.score));
-  if (parsed.length === 0) return null;
-  const best = lowestWins
-    ? Math.min(...parsed.map((s) => s.score))
-    : Math.max(...parsed.map((s) => s.score));
-  const tops = parsed.filter((s) => s.score === best);
-  const solo = tops[0];
-  return tops.length === 1 && solo ? solo.player : null;
 }
 
 export function SessionForm({ games, players, preselectedGameId }: SessionFormProps) {
@@ -231,15 +213,18 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
       if (!selectedGame) return;
       setSaving(true);
 
-      const computedWinner = computeWinner(activePlayers, scoreValues, selectedGame.lowest_score_wins ?? false);
+      // Eén keer parsen, en dezelfde array gaat naar computeWinner en naar de API.
+      const scoresArray = parseScoreEntries(
+        activePlayers.map((p) => p.id),
+        scoreValues
+      );
+      const winnerId = computeWinner(
+        scoresArray,
+        selectedGame.lowest_score_wins ?? false
+      );
+      const computedWinner =
+        activePlayers.find((p) => p.id === winnerId) ?? null;
       setWinner(computedWinner);
-
-      const scoresArray = activePlayers.map((p) => ({
-        player_id: p.id,
-        score: scoreValues[p.id]?.trim()
-          ? parseInt(scoreValues[p.id] ?? "", 10)
-          : null,
-      }));
 
       try {
         const response = await fetch("/api/sessions", {

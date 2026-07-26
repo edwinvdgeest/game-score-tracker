@@ -63,14 +63,22 @@ Verwachte CSV-kolommen: `Datum, Game, Winnaar, Beginner, Score Edwin, Score Lisa
 
 Het script slaat dubbele rijen automatisch over op basis van datum + spel.
 
-## Badges testen
+## Tests
 
-De badge-logica (`lib/achievements.ts`) heeft een zelftest op verzonnen sessies — handig na het
-toevoegen van een nieuwe badge, geen database nodig:
+De rekenlogica in `lib/` is getest met Vitest op verzonnen sessies — geen database nodig.
+Handig na het toevoegen van een badge of het aanpassen van een statistiek:
 
 ```bash
-npx tsx scripts/test-achievements.ts
+npm run test         # eenmalig
+npm run test:watch   # blijft meekijken
+npm run typecheck    # tsc --noEmit
+npm run lint
 ```
+
+Getest worden de badge-logica (`lib/achievements.ts`), de statistiekberekeningen
+(`lib/stats.ts`) en de datum- en reeks-helpers (`lib/utils.ts`). Query-functies die
+Supabase aanroepen worden niet getest: die bevatten alleen kolomselectie, de berekeningen
+zijn er bewust uitgetild.
 
 ## Deployen naar Vercel
 
