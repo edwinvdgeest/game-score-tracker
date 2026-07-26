@@ -2,17 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { mutate } from "swr";
+import { toast } from "sonner";
 import type { SessionDetail } from "@/lib/queries";
-import type { Player, Game } from "@/lib/schemas";
+import type { Player } from "@/lib/schemas";
+import { computeWinner, parseScoreEntries } from "@/lib/stats";
 import { formatDate } from "@/lib/utils";
 
 interface HistoryClientProps {
   sessions: SessionDetail[];
   players: Player[];
-  games: Game[];
 }
 
-export function HistoryClient({ sessions, players, games }: HistoryClientProps) {
+export function HistoryClient({ sessions, players }: HistoryClientProps) {
   const router = useRouter();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -23,6 +25,9 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
   const [editWinnerId, setEditWinnerId] = useState("");
   const [editStarterId, setEditStarterId] = useState<string>("");
   const [editPlayedAt, setEditPlayedAt] = useState("");
+  /** Deelnemers van de sessie die bewerkt wordt, met hun score als tekst. */
+  const [editParticipants, setEditParticipants] = useState<Player[]>([]);
+  const [editScores, setEditScores] = useState<Record<string, string>>({});
 
   function startEdit(session: SessionDetail) {
     setEditingId(session.id);
@@ -34,43 +39,102 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
       .toISOString()
       .slice(0, 16);
     setEditPlayedAt(local);
+
+    const participants = session.scores.map((entry) => entry.player);
+    setEditParticipants(participants);
+    setEditScores(
+      Object.fromEntries(
+        session.scores.map((entry) => [
+          entry.player.id,
+          entry.score === null ? "" : String(entry.score),
+        ])
+      )
+    );
   }
+
+  /**
+   * Zijn er scores ingevuld? Zo ja, dan bepalen die de winnaar en is de select
+   * overbodig. Historische sessies zonder scores houden de handmatige keuze.
+   */
+  const hasAnyScore = editParticipants.some(
+    (p) => (editScores[p.id] ?? "").trim() !== ""
+  );
+
+  const derivedWinnerId = (() => {
+    const session = localSessions.find((s) => s.id === editingId);
+    if (!session || !hasAnyScore) return null;
+    return computeWinner(
+      parseScoreEntries(
+        editParticipants.map((p) => p.id),
+        editScores
+      ),
+      session.game.lowest_score_wins ?? false
+    );
+  })();
+
+  /** De winnaar die opgeslagen wordt: afgeleid uit scores, of handmatig gekozen. */
+  const effectiveWinnerId = hasAnyScore ? derivedWinnerId : editWinnerId || null;
 
   async function handleSave(sessionId: string) {
     setLoading(true);
     try {
       const body: Record<string, unknown> = {
-        winner_id: editWinnerId,
+        winner_id: effectiveWinnerId,
         starter_id: editStarterId || null,
         played_at: new Date(editPlayedAt).toISOString(),
       };
+      // Scores meesturen vervangt de deelnemersset, dus alleen doen als we die set
+      // kennen — en dan altijd volledig, inclusief de lege scores.
+      if (editParticipants.length > 0) {
+        body.scores = parseScoreEntries(
+          editParticipants.map((p) => p.id),
+          editScores
+        );
+      }
+
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Opslaan mislukt");
+
       setEditingId(null);
       router.refresh();
-      // Optimistic update
-      const winner = players.find((p) => p.id === editWinnerId);
-      if (winner) {
-        setLocalSessions((prev) =>
-          prev.map((s) =>
-            s.id === sessionId
-              ? {
-                  ...s,
-                  winner_id: editWinnerId,
-                  winner,
-                  starter_id: editStarterId || null,
-                  played_at: new Date(editPlayedAt).toISOString(),
-                }
-              : s
-          )
-        );
-      }
+      // Het scorebord verandert mee zodra een score of winnaar verandert.
+      void mutate((key) => typeof key === "string" && key.startsWith("/api/stats"));
+      void mutate("/api/sessions");
+
+      // Optimistische update — ook bij gelijkspel, waar de winnaar null is.
+      const winner = players.find((p) => p.id === effectiveWinnerId) ?? null;
+      const parsed = parseScoreEntries(
+        editParticipants.map((p) => p.id),
+        editScores
+      );
+      setLocalSessions((prev) =>
+        prev.map((s) =>
+          s.id === sessionId
+            ? {
+                ...s,
+                winner_id: effectiveWinnerId,
+                winner,
+                starter_id: editStarterId || null,
+                played_at: new Date(editPlayedAt).toISOString(),
+                scores:
+                  editParticipants.length > 0
+                    ? editParticipants.map((p) => ({
+                        player: p,
+                        score:
+                          parsed.find((e) => e.player_id === p.id)?.score ?? null,
+                      }))
+                    : s.scores,
+              }
+            : s
+        )
+      );
+      toast.success("Potje bijgewerkt ✅");
     } catch {
-      alert("Er ging iets mis bij het opslaan.");
+      toast.error("Er ging iets mis bij het opslaan.");
     } finally {
       setLoading(false);
     }
@@ -83,8 +147,11 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
       if (!res.ok) throw new Error("Verwijderen mislukt");
       setDeletingId(null);
       setLocalSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      void mutate((key) => typeof key === "string" && key.startsWith("/api/stats"));
+      void mutate("/api/sessions");
+      toast.success("Potje verwijderd 🗑️");
     } catch {
-      alert("Er ging iets mis bij het verwijderen.");
+      toast.error("Er ging iets mis bij het verwijderen.");
     } finally {
       setLoading(false);
     }
@@ -169,26 +236,96 @@ export function HistoryClient({ sessions, players, games }: HistoryClientProps) 
             </div>
           </div>
 
+          {/* Scores — samenvatting onder de rij */}
+          {session.scores.some((entry) => entry.score !== null) && (
+            <div
+              className="px-3 pb-3 md:px-4 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              {session.scores.map((entry) => (
+                <span key={entry.player.id}>
+                  {entry.player.emoji} {entry.score ?? "—"}
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Edit form */}
           {editingId === session.id && (
             <div
               className="px-4 pb-4 pt-1 border-t space-y-3"
               style={{ backgroundColor: "var(--color-warm-gray)" }}
             >
+              {/* Scores per deelnemer */}
+              {editParticipants.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-xs font-bold">
+                    Scores{" "}
+                    {session.game.lowest_score_wins && (
+                      <span className="font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                        (laagste wint)
+                      </span>
+                    )}
+                  </label>
+                  {editParticipants.map((p) => (
+                    <div key={p.id} className="flex items-center gap-2">
+                      <span className="text-lg w-6 text-center">{p.emoji}</span>
+                      <span className="text-sm font-bold flex-1 truncate">{p.name}</span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={editScores[p.id] ?? ""}
+                        onChange={(e) =>
+                          setEditScores((prev) => ({ ...prev, [p.id]: e.target.value }))
+                        }
+                        placeholder="—"
+                        className="w-24 rounded-xl border px-3 py-2 text-base font-bold text-right"
+                        style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-1">
                 <label className="text-xs font-bold">Winnaar</label>
-                <select
-                  value={editWinnerId}
-                  onChange={(e) => setEditWinnerId(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
-                  style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
-                >
-                  {players.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.emoji} {p.name}
-                    </option>
-                  ))}
-                </select>
+                {hasAnyScore ? (
+                  <div
+                    className="rounded-xl border px-3 py-2 text-sm font-bold"
+                    style={{ backgroundColor: "var(--muted)" }}
+                  >
+                    {derivedWinnerId ? (
+                      <>
+                        🏆{" "}
+                        {editParticipants.find((p) => p.id === derivedWinnerId)?.name ??
+                          "Onbekend"}{" "}
+                        wint
+                      </>
+                    ) : (
+                      <>🤝 Gelijkspel</>
+                    )}
+                    <div
+                      className="text-xs font-semibold mt-0.5"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      Volgt automatisch uit de scores
+                    </div>
+                  </div>
+                ) : (
+                  <select
+                    value={editWinnerId}
+                    onChange={(e) => setEditWinnerId(e.target.value)}
+                    className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
+                    style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
+                  >
+                    <option value="">🤝 Gelijkspel</option>
+                    {players.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.emoji} {p.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold">Beginner (wie begon?)</label>

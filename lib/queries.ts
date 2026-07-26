@@ -440,6 +440,8 @@ export type SessionDetail = {
   notes: string | null;
   game: Game;
   winner: Player | null;
+  /** Deelnemers met hun score. Nodig om een score in /history te kunnen corrigeren. */
+  scores: Array<{ player: Player; score: number | null }>;
 };
 
 /** Fetch all sessions ordered by played_at desc */
@@ -447,7 +449,9 @@ export async function getAllSessions(): Promise<SessionDetail[]> {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("game_sessions")
-    .select("id, played_at, day_of_week, winner_id, starter_id, notes, game:games(*), winner:players!winner_id(*)")
+    .select(
+      "id, played_at, day_of_week, winner_id, starter_id, notes, game:games(*), winner:players!winner_id(*), scores:session_players(player:players(*), score)"
+    )
     .order("played_at", { ascending: false });
   if (error) throw new Error(`Failed to fetch sessions: ${error.message}`);
   return (data ?? []) as unknown as SessionDetail[];
@@ -476,8 +480,18 @@ export async function updateSession(
     if (error) throw new Error(`Failed to update session: ${error.message}`);
   }
 
-  // Update scores if provided
+  // Update scores if provided.
+  //
+  // Let op: dit vervangt de deelnemers, het vult ze niet aan. De payload moet dus ALTIJD
+  // de volledige deelnemersset bevatten, inclusief spelers zonder score (score: null).
+  // Wie ontbreekt, is straks geen deelnemer meer en verdwijnt uit alle statistieken.
   if (input.scores !== undefined) {
+    if (input.scores.length === 0) {
+      throw new Error(
+        "Een sessie zonder deelnemers bestaat niet — stuur de volledige deelnemersset mee."
+      );
+    }
+
     // Delete existing scores and re-insert
     const { error: deleteError } = await supabase
       .from("session_players")

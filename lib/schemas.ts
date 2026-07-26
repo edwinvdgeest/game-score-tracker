@@ -218,7 +218,9 @@ export type SessionHighlightsResponse = z.infer<typeof sessionHighlightsResponse
 
 // API input schema for PATCH /api/sessions/[id]
 export const updateSessionSchema = z.object({
-  winner_id: z.string().uuid().optional(),
+  // Nullable, net als bij createSessionSchema: null betekent gelijkspel. Zonder
+  // .nullable() faalde het opslaan van een gelijkspel op de validatie.
+  winner_id: z.string().uuid().nullable().optional(),
   starter_id: z.string().uuid().nullable().optional(),
   played_at: z.string().datetime().optional(),
   notes: z.string().max(500).nullable().optional(),

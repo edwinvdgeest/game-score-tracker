@@ -1,15 +1,10 @@
-import { getAllSessions } from "@/lib/queries";
-import { getPlayers, getGames } from "@/lib/queries";
+import { getAllSessions, getPlayers } from "@/lib/queries";
 import { HistoryClient } from "@/components/history/history-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function HistoryPage() {
-  const [sessions, players, games] = await Promise.all([
-    getAllSessions(),
-    getPlayers(),
-    getGames(),
-  ]);
+  const [sessions, players] = await Promise.all([getAllSessions(), getPlayers()]);
 
   return (
     <div className="space-y-6">
@@ -21,7 +16,7 @@ export default async function HistoryPage() {
           Alle gespeelde potjes
         </p>
       </div>
-      <HistoryClient sessions={sessions} players={players} games={games} />
+      <HistoryClient sessions={sessions} players={players} />
     </div>
   );
 }
