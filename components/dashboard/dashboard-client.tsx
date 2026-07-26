@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import type { PeriodFilter, StatsResponse, Game } from "@/lib/schemas";
 import { PeriodFilterTabs } from "./period-filter";
 import { Leaderboard } from "./leaderboard";
@@ -100,6 +101,13 @@ export function DashboardClient({ initialStats, games }: DashboardClientProps) {
             guestLeaderboard={displayStats.guest_leaderboard}
           />
           <StreakCards leaderboard={displayStats.leaderboard} />
+          <Link
+            href="/duel"
+            className="flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-bold text-sm transition-colors hover:border-[var(--color-coral)] hover:text-[var(--color-coral)]"
+            style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+          >
+            ⚔️ Bekijk het onderlinge duel
+          </Link>
         </div>
         <div className="space-y-6 mt-6 md:mt-0">
           <LazyInView>

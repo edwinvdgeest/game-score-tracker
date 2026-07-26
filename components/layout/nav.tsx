@@ -20,6 +20,7 @@ const PRIMARY_NAV = [
 ];
 
 const MORE_NAV = [
+  { href: "/duel", label: "Duel", emoji: "⚔️" },
   { href: "/history", label: "Historie", emoji: "📜" },
   { href: "/achievements", label: "Badges", emoji: "🏅" },
   { href: "/suggest", label: "Suggestie", emoji: "🎲" },

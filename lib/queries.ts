@@ -8,6 +8,11 @@ import {
 } from "@/lib/achievements";
 import { getPeriodDateRange } from "@/lib/utils";
 import { computeLeaderboard, type StatSession } from "@/lib/stats";
+import {
+  computeHeadToHead,
+  type DuelSession,
+  type HeadToHead,
+} from "@/lib/duel";
 import type {
   Game,
   GameWithStats,
@@ -502,6 +507,107 @@ export async function getAllSessions(): Promise<SessionDetail[]> {
     .order("played_at", { ascending: false });
   if (error) throw new Error(`Failed to fetch sessions: ${error.message}`);
   return (data ?? []) as unknown as SessionDetail[];
+}
+
+// ─── Onderling duel ───────────────────────────────────────────────────────────
+
+export type HeadToHeadResponse = {
+  playerA: Player;
+  playerB: Player;
+  stats: HeadToHead;
+};
+
+/**
+ * De onderlinge stand tussen twee spelers in een periode.
+ *
+ * Eén batch queries, daarna alles in memory via lib/duel.ts — hetzelfde patroon als
+ * getStats. Met een paar honderd potjes is dat ruim snel genoeg.
+ */
+export async function getHeadToHead(
+  playerAId: string,
+  playerBId: string,
+  period: PeriodFilter = "all"
+): Promise<HeadToHeadResponse | null> {
+  const supabase = createServerClient();
+  const dateRange = getPeriodDateRange(period);
+
+  let sessionQuery = supabase
+    .from("game_sessions")
+    .select("id, played_at, winner_id, game:games(id, name, emoji, lowest_score_wins)")
+    .order("played_at", { ascending: false });
+
+  if (dateRange) {
+    sessionQuery = sessionQuery
+      .gte("played_at", dateRange.from)
+      .lte("played_at", dateRange.to);
+  }
+
+  const [sessionsResult, playersResult] = await Promise.all([
+    sessionQuery,
+    supabase.from("players").select("*").in("id", [playerAId, playerBId]),
+  ]);
+
+  if (sessionsResult.error) throw new Error(sessionsResult.error.message);
+  if (playersResult.error) throw new Error(playersResult.error.message);
+
+  const players = (playersResult.data ?? []) as Player[];
+  const playerA = players.find((p) => p.id === playerAId);
+  const playerB = players.find((p) => p.id === playerBId);
+  if (!playerA || !playerB) return null;
+
+  const rawSessions = (sessionsResult.data ?? []) as unknown as Array<{
+    id: string;
+    played_at: string;
+    winner_id: string | null;
+    game: { id: string; name: string; emoji: string; lowest_score_wins: boolean | null };
+  }>;
+
+  const sessionIds = rawSessions.map((s) => s.id);
+  const scoresBySession = new Map<
+    string,
+    Array<{ player_id: string; score: number | null }>
+  >();
+
+  if (sessionIds.length > 0) {
+    // Alleen de rijen van deze twee spelers: meer hebben we niet nodig om paarsgewijs
+    // te vergelijken, en het scheelt data.
+    const { data: spData, error: spError } = await supabase
+      .from("session_players")
+      .select("session_id, player_id, score")
+      .in("session_id", sessionIds)
+      .in("player_id", [playerAId, playerBId]);
+
+    if (spError) throw new Error(spError.message);
+
+    for (const sp of (spData ?? []) as Array<{
+      session_id: string;
+      player_id: string;
+      score: number | null;
+    }>) {
+      const arr = scoresBySession.get(sp.session_id) ?? [];
+      arr.push({ player_id: sp.player_id, score: sp.score });
+      scoresBySession.set(sp.session_id, arr);
+    }
+  }
+
+  const duelSessions: DuelSession[] = rawSessions.map((s) => ({
+    id: s.id,
+    played_at: s.played_at,
+    winner_id: s.winner_id,
+    game: {
+      id: s.game.id,
+      name: s.game.name,
+      emoji: s.game.emoji,
+      lowest_score_wins: s.game.lowest_score_wins ?? false,
+    },
+    scores: scoresBySession.get(s.id) ?? [],
+  }));
+
+  return {
+    playerA,
+    playerB,
+    stats: computeHeadToHead(duelSessions, playerAId, playerBId),
+  };
 }
 
 // ─── Herinneringen ────────────────────────────────────────────────────────────
