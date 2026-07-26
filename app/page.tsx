@@ -10,33 +10,40 @@ interface HomePageProps {
 }
 
 export default async function HomePage({ searchParams }: HomePageProps) {
+  // Only the data fetch belongs in the try — see the comment in app/dashboard/page.tsx.
+  let data: [
+    Awaited<ReturnType<typeof getGamesSortedByRecent>>,
+    Awaited<ReturnType<typeof getPlayers>>,
+    { game?: string },
+  ];
   try {
-    const [games, players, resolvedParams] = await Promise.all([
+    data = await Promise.all([
       getGamesSortedByRecent(),
       getPlayers(),
       searchParams,
     ]);
-
-    const preselectedGameId = resolvedParams.game;
-
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1
-            className="text-3xl font-black"
-            style={{ color: "var(--foreground)" }}
-          >
-            Spelscores 🎲
-          </h1>
-          <p className="font-semibold" style={{ color: "var(--muted-foreground)" }}>
-            Wie wint er vandaag?
-          </p>
-        </div>
-        <MarathonStartButton />
-        <SessionForm games={games} players={players} preselectedGameId={preselectedGameId} />
-      </div>
-    );
   } catch {
     return <SetupBanner />;
   }
+  const [games, players, resolvedParams] = data;
+
+  const preselectedGameId = resolvedParams.game;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1
+          className="text-3xl font-black"
+          style={{ color: "var(--foreground)" }}
+        >
+          Spelscores 🎲
+        </h1>
+        <p className="font-semibold" style={{ color: "var(--muted-foreground)" }}>
+          Wie wint er vandaag?
+        </p>
+      </div>
+      <MarathonStartButton />
+      <SessionForm games={games} players={players} preselectedGameId={preselectedGameId} />
+    </div>
+  );
 }

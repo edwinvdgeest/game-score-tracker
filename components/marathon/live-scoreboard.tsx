@@ -7,17 +7,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useMarathonDetail } from "@/lib/hooks/useMarathon";
 import { finishMarathon } from "@/lib/hooks/useMarathon";
+import { useMinuteClock } from "@/lib/hooks/useClock";
 import { Button } from "@/components/ui/button";
 import type { Player } from "@/lib/schemas";
 
 const ReactConfetti = dynamic(() => import("react-confetti"), { ssr: false });
 
 function Timer({ startedAt }: { startedAt: string }) {
-  const [now, setNow] = useState(Date.now());
-  // Tick every minute
-  if (typeof window !== "undefined") {
-    setTimeout(() => setNow(Date.now()), 60_000);
-  }
+  const now = useMinuteClock();
+  // 0 means "not hydrated yet" — render nothing rather than a bogus duration.
+  if (now === 0) return null;
   const minutes = Math.floor((now - new Date(startedAt).getTime()) / 60_000);
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -33,7 +32,6 @@ export function LiveScoreboard({ marathonId }: Props) {
   const { detail, isLoading, mutate } = useMarathonDetail(marathonId);
   const [ending, setEnding] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
-  const router = useRouter();
 
   if (isLoading || !detail) {
     return (
@@ -194,7 +192,6 @@ interface EndScreenProps {
 function EndScreen({ players, winCounts, sessions, mostPlayedGame, longestStreak, marathonName }: EndScreenProps) {
   const router = useRouter();
   const ranked = [...players].sort((a, b) => (winCounts[b.id] ?? 0) - (winCounts[a.id] ?? 0));
-  const [first, second, third] = ranked;
 
   const podiumEmojis = ["🥇", "🥈", "🥉"];
   const podiumSizes = ["text-6xl", "text-5xl", "text-4xl"];

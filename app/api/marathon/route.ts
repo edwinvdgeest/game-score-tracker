@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createMarathon, getActiveMarathon, getMarathonHistory } from "@/lib/queries";
+import { createMarathon, getActiveMarathon } from "@/lib/queries";
 import { createMarathonSchema } from "@/lib/schemas";
 import { ZodError } from "zod";
 

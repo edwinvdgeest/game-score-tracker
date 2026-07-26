@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { ScoreStatsResponse } from "@/lib/queries";
 import type { PeriodFilter } from "@/lib/schemas";
+import { useScoreStats } from "@/lib/hooks/useScoreStats";
 import { formatShortDate } from "@/lib/utils";
 
 interface ScoreStatsProps {
@@ -11,23 +10,9 @@ interface ScoreStatsProps {
 }
 
 export function ScoreStats({ gameId, period }: ScoreStatsProps) {
-  const [data, setData] = useState<ScoreStatsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { scoreStats: data, isLoading } = useScoreStats(period, gameId);
 
-  useEffect(() => {
-    setLoading(true);
-    const params = new URLSearchParams({ period });
-    if (gameId) params.set("game_id", gameId);
-    fetch(`/api/stats/scores?${params}`)
-      .then((r) => r.json())
-      .then((d: ScoreStatsResponse) => {
-        setData(d);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [gameId, period]);
-
-  if (loading || !data || !data.has_scores) return null;
+  if (isLoading || !data || !data.has_scores) return null;
 
   const { hall_of_fame, biggest_margin } = data;
 

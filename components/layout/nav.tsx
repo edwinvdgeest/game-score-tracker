@@ -40,10 +40,14 @@ export function Nav() {
     return () => document.removeEventListener("keydown", handle);
   }, [meerOpen]);
 
-  // Sluit het menu bij routewijziging
-  useEffect(() => {
+  // Sluit het menu bij routewijziging. Dit gebeurt tijdens de render in plaats van in
+  // een effect: het is state die van de route afgeleid wordt, en een effect zou een
+  // extra render kosten waarin het menu nog open staat.
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (lastPathname !== pathname) {
+    setLastPathname(pathname);
     setMeerOpen(false);
-  }, [pathname]);
+  }
 
   const meerActive = MORE_NAV.some((item) => pathname === item.href);
 
