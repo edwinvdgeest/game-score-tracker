@@ -8,8 +8,28 @@ Score tracker voor Edwin & Lisanne (en soms Minou). Score loggen in 2 taps, dire
 
 1. Ga naar [supabase.com](https://supabase.com) en maak een gratis project aan
 2. Ga naar **SQL Editor** en voer de migrations uit in deze volgorde:
-   - `supabase/migrations/001_create_tables.sql`
-   - `supabase/migrations/002_seed_data.sql`
+
+| # | Bestand | Wat het doet |
+|---|---------|-------------|
+| 1 | `001_create_tables.sql` | Tabellen, enum en indexes |
+| 2 | `002_seed_data.sql` | 3 spelers + 30 spellen |
+| 3 | `002_nullable_winner_cleanup.sql` | `winner_id` mag NULL zijn = gelijkspel |
+| 4 | `003_games_favorite_archive.sql` | Favoriet ⭐ en archiveren |
+| 5 | `004_marathon_mode.sql` | Marathon Mode |
+| 6 | `005_guest_players.sql` | Gastspelers |
+| 7 | `006_difficulty_duration.sql` | Moeilijkheidsgraad en speelduur |
+| 8 | `007_lowest_score_wins.sql` | Laagste score wint per spel |
+| 9 | `008_player_management.sql` | `include_by_default` voor spelersbeheer |
+| 10 | `009_backfill_session_players.sql` | Ontbrekende deelnemersrijen aanvullen |
+
+> Let op: er zijn twee bestanden met prefix `002`. Draai `002_seed_data.sql` vóór
+> `002_nullable_winner_cleanup.sql`.
+>
+> Gebruik altijd de **SQL Editor**, niet de Table Editor. Die zet RLS aan op nieuwe
+> tabellen, en omdat de app met de anon key werkt zouden alle queries daarna stil falen.
+>
+> `009_backfill_session_players.sql` is niet terug te draaien. Lees het waarschuwingsblok
+> bovenaan dat bestand en exporteer eerst een CSV-backup.
 
 ### 2. Environment instellen
 
