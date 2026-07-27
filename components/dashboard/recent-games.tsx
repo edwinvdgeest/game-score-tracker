@@ -86,6 +86,15 @@ export function RecentGames({ sessions }: RecentGamesProps) {
                   ))}
                 </div>
               )}
+
+              {session.notes && (
+                <p
+                  className="text-xs font-semibold italic"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  📝 {session.notes}
+                </p>
+              )}
             </div>
           );
         })}

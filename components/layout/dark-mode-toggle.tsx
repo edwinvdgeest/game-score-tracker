@@ -1,15 +1,15 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useIsHydrated } from "@/lib/hooks/useClock";
 
 export function DarkModeToggle() {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const isHydrated = useIsHydrated();
 
-  // Avoid hydration mismatch
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return <div className="w-9 h-9" />;
+  // The resolved theme is only known in the browser, so render a placeholder until
+  // hydration to avoid a mismatch.
+  if (!isHydrated) return <div className="w-9 h-9" />;
 
   const isDark = theme === "dark";
 

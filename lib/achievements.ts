@@ -890,15 +890,18 @@ function findPeriodChampionDate(
   return earliest;
 }
 
-/** Find date when a consecutive win streak of `n` was first reached (oldest) */
+/**
+ * Find date when a consecutive win streak of `n` was first reached (oldest).
+ *
+ * Only sessions the player took part in count: sitting out someone else's game does not
+ * end a streak. This matches the streak shown on the dashboard.
+ */
 function findFirstStreakDate(
   sessions: AchievementSession[],
   playerId: string,
   n: number
 ): string | null {
-  const sorted = [...sessions].sort((a, b) =>
-    a.played_at.localeCompare(b.played_at)
-  );
+  const sorted = playerSessions(sessions, playerId);
   let streak = 0;
   let result: string | null = null;
   for (const s of sorted) {

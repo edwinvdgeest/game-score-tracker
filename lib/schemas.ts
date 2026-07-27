@@ -17,15 +17,28 @@ export const playerSchema = z.object({
   emoji: z.string(),
   is_active: z.boolean(),
   is_guest: z.boolean().default(false),
+  // Staat deze speler standaard aangevinkt bij een nieuw potje? Losstaand van is_active:
+  // een speler die af en toe meedoet is actief maar niet standaard aangevinkt.
+  include_by_default: z.boolean().default(false),
   created_at: z.string(),
 });
 export type Player = z.infer<typeof playerSchema>;
 
-export const createGuestPlayerSchema = z.object({
+export const createPlayerSchema = z.object({
   name: z.string().min(1).max(50),
-  emoji: z.string().min(1).max(10).default("🎭"),
+  emoji: z.string().min(1).max(10).default("🎲"),
+  is_guest: z.boolean().optional().default(false),
+  include_by_default: z.boolean().optional().default(false),
 });
-export type CreateGuestPlayerInput = z.infer<typeof createGuestPlayerSchema>;
+export type CreatePlayerInput = z.infer<typeof createPlayerSchema>;
+
+export const updatePlayerSchema = z.object({
+  name: z.string().min(1).max(50).optional(),
+  emoji: z.string().min(1).max(10).optional(),
+  is_active: z.boolean().optional(),
+  include_by_default: z.boolean().optional(),
+});
+export type UpdatePlayerInput = z.infer<typeof updatePlayerSchema>;
 
 export const gameSchema = z.object({
   id: z.string().uuid(),
@@ -143,6 +156,9 @@ export const scoreTrendEntrySchema = z.object({
 
 export const statsResponseSchema = z.object({
   leaderboard: z.array(playerStatsSchema),
+  // Gasten staan apart van het hoofd-leaderboard, en alleen als ze in deze periode
+  // daadwerkelijk gespeeld hebben.
+  guest_leaderboard: z.array(playerStatsSchema).optional(),
   top_games: z.array(topGameSchema),
   recent_sessions: z.array(
     gameSessionSchema.extend({
@@ -159,11 +175,20 @@ export type StatsResponse = z.infer<typeof statsResponseSchema>;
 export const periodFilterSchema = z.enum([
   "today",
   "this_week",
+  "this_season",
   "all",
   "this_year",
   "last_year",
 ]);
 export type PeriodFilter = z.infer<typeof periodFilterSchema>;
+
+// Een concreet seizoen, in tegenstelling tot "this_season" hierboven. De enum kan niet
+// dragen wélk kwartaal je bedoelt, dus dat gaat via deze aparte vorm.
+export const seasonRefSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+  quarter: z.number().int().min(1).max(4),
+});
+export type SeasonRefInput = z.infer<typeof seasonRefSchema>;
 
 // Marathon types
 export const marathonSchema = z.object({
@@ -215,7 +240,9 @@ export type SessionHighlightsResponse = z.infer<typeof sessionHighlightsResponse
 
 // API input schema for PATCH /api/sessions/[id]
 export const updateSessionSchema = z.object({
-  winner_id: z.string().uuid().optional(),
+  // Nullable, net als bij createSessionSchema: null betekent gelijkspel. Zonder
+  // .nullable() faalde het opslaan van een gelijkspel op de validatie.
+  winner_id: z.string().uuid().nullable().optional(),
   starter_id: z.string().uuid().nullable().optional(),
   played_at: z.string().datetime().optional(),
   notes: z.string().max(500).nullable().optional(),

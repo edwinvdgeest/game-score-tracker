@@ -4,13 +4,13 @@ import useSWR, { mutate as globalMutate } from "swr";
 import type { Marathon } from "@/lib/schemas";
 import type { MarathonDetail, MarathonSummary } from "@/lib/queries";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "./fetcher";
 
 /** Actieve marathon (of null) */
 export function useActiveMarathon() {
   const { data, error, isLoading, mutate } = useSWR<Marathon | null>(
     "/api/marathon",
-    fetcher,
+    jsonFetcher,
     { revalidateOnFocus: true, dedupingInterval: 5_000 }
   );
   return { marathon: data ?? null, error, isLoading, mutate };
@@ -20,7 +20,7 @@ export function useActiveMarathon() {
 export function useMarathonDetail(id: string | null) {
   const { data, error, isLoading, mutate } = useSWR<MarathonDetail>(
     id ? `/api/marathon/${id}` : null,
-    fetcher,
+    jsonFetcher,
     { revalidateOnFocus: true, refreshInterval: 10_000, dedupingInterval: 5_000 }
   );
   return { detail: data ?? null, error, isLoading, mutate };
@@ -30,7 +30,7 @@ export function useMarathonDetail(id: string | null) {
 export function useMarathonHistory() {
   const { data, error, isLoading, mutate } = useSWR<MarathonSummary[]>(
     "/api/marathon/history",
-    fetcher,
+    jsonFetcher,
     { revalidateOnFocus: true, dedupingInterval: 30_000 }
   );
   return { history: data ?? [], error, isLoading, mutate };

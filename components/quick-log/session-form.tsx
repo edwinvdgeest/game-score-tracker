@@ -18,10 +18,10 @@ import { WinnerHighlights } from "./winner-highlights";
 import { BadgeUnlock } from "./badge-unlock";
 import { FinalScores } from "./final-scores";
 import { cn } from "@/lib/utils";
+import { computeWinner, parseScoreEntries } from "@/lib/stats";
+import { jsonFetcher } from "@/lib/hooks/fetcher";
 import { toast } from "sonner";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
-
-const swrFetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const GUEST_EMOJIS = ["🎭", "🌟", "🎪", "🦋", "🌈", "🎯", "🎨", "🎸", "🌺", "🦊"];
 
@@ -52,25 +52,6 @@ function vibrate(pattern: number | number[]) {
   }
 }
 
-/** Returns the winning player, or null on tie / no scores entered.
- *  When lowestWins is true the player with the lowest score wins. */
-function computeWinner(
-  players: Player[],
-  scores: Record<string, string>,
-  lowestWins = false
-): Player | null {
-  const parsed = players
-    .map((p) => ({ player: p, score: parseInt(scores[p.id] ?? "", 10) }))
-    .filter((s) => !isNaN(s.score));
-  if (parsed.length === 0) return null;
-  const best = lowestWins
-    ? Math.min(...parsed.map((s) => s.score))
-    : Math.max(...parsed.map((s) => s.score));
-  const tops = parsed.filter((s) => s.score === best);
-  const solo = tops[0];
-  return tops.length === 1 && solo ? solo.player : null;
-}
-
 export function SessionForm({ games, players, preselectedGameId }: SessionFormProps) {
   const preselectedGame = preselectedGameId ? (games.find((g) => g.id === preselectedGameId) ?? null) : null;
   const [step, setStep] = useState<Step>(preselectedGame ? "starter" : "game");
@@ -78,6 +59,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
   const [selectedStarter, setSelectedStarter] = useState<Player | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
   const [duration, setDuration] = useState<number | null>(null);
+  const [note, setNote] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
   const [saving, setSaving] = useState(false);
   // undefined = not yet saved; null = saved with tie; Player = saved with winner
@@ -94,10 +76,15 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
   // Lokale spelerslijst: vaste spelers + gastspelers die deze sessie zijn toegevoegd
   const [localPlayers, setLocalPlayers] = useState<Player[]>(players);
 
-  // Default: everyone except Minou
-  const [activePlayerIds, setActivePlayerIds] = useState<Set<string>>(
-    () => new Set(players.filter((p) => p.name !== "Minou").map((p) => p.id))
-  );
+  // Wie staat standaard aangevinkt? Dat komt uit players.include_by_default, te beheren
+  // op /players. Als niemand die vlag heeft (verse database, of iedereen uitgezet in de
+  // beheerpagina) vallen we terug op alle vaste spelers — anders kun je geen potje meer
+  // loggen omdat er nul deelnemers geselecteerd staan.
+  const [activePlayerIds, setActivePlayerIds] = useState<Set<string>>(() => {
+    const byDefault = players.filter((p) => p.include_by_default);
+    const initial = byDefault.length > 0 ? byDefault : players.filter((p) => !p.is_guest);
+    return new Set(initial.map((p) => p.id));
+  });
 
   // Gast-formulier staat
   const [showGuestForm, setShowGuestForm] = useState(false);
@@ -113,7 +100,8 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
       const res = await fetch("/api/players", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, emoji: guestEmoji }),
+        // is_guest expliciet: POST /api/players maakt standaard een vaste speler aan.
+        body: JSON.stringify({ name, emoji: guestEmoji, is_guest: true }),
       });
       if (!res.ok) throw new Error("Aanmaken mislukt");
       const newPlayer = (await res.json()) as Player;
@@ -148,7 +136,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
           selectedStarter ? `&starter_id=${selectedStarter.id}` : ""
         }`
       : null;
-  const { data: hypeData } = useSWR<PreGameHypeResponse>(hypeKey, swrFetcher, {
+  const { data: hypeData } = useSWR<PreGameHypeResponse>(hypeKey, jsonFetcher, {
     dedupingInterval: 60_000,
     revalidateOnFocus: false,
   });
@@ -160,7 +148,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
       : null;
   const { data: highlightsData } = useSWR<SessionHighlightsResponse>(
     highlightsKey,
-    swrFetcher,
+    jsonFetcher,
     { revalidateOnFocus: false }
   );
 
@@ -198,6 +186,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
     setSelectedStarter(null);
     setScores({});
     setDuration(null);
+    setNote("");
     setWinner(undefined);
     setSavedSessionId(null);
     setSecondsLeft(null);
@@ -231,15 +220,18 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
       if (!selectedGame) return;
       setSaving(true);
 
-      const computedWinner = computeWinner(activePlayers, scoreValues, selectedGame.lowest_score_wins ?? false);
+      // Eén keer parsen, en dezelfde array gaat naar computeWinner en naar de API.
+      const scoresArray = parseScoreEntries(
+        activePlayers.map((p) => p.id),
+        scoreValues
+      );
+      const winnerId = computeWinner(
+        scoresArray,
+        selectedGame.lowest_score_wins ?? false
+      );
+      const computedWinner =
+        activePlayers.find((p) => p.id === winnerId) ?? null;
       setWinner(computedWinner);
-
-      const scoresArray = activePlayers.map((p) => ({
-        player_id: p.id,
-        score: scoreValues[p.id]?.trim()
-          ? parseInt(scoreValues[p.id] ?? "", 10)
-          : null,
-      }));
 
       try {
         const response = await fetch("/api/sessions", {
@@ -252,6 +244,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
             scores: scoresArray,
             marathon_id: marathon?.id ?? null,
             duration_minutes: duration ?? null,
+            notes: note.trim() || null,
           }),
         });
 
@@ -291,7 +284,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
         setSaving(false);
       }
     },
-    [selectedGame, selectedStarter, activePlayers, marathon, duration]
+    [selectedGame, selectedStarter, activePlayers, marathon, duration, note]
   );
 
   const handleScoreChange = useCallback((playerId: string, value: string) => {
@@ -642,6 +635,8 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
             saving={saving}
             duration={duration}
             onDurationChange={setDuration}
+            note={note}
+            onNoteChange={setNote}
             lowestScoreWins={selectedGame?.lowest_score_wins ?? false}
           />
         </>

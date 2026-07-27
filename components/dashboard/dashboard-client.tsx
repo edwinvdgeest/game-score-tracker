@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import type { PeriodFilter, StatsResponse, Game } from "@/lib/schemas";
 import { PeriodFilterTabs } from "./period-filter";
 import { Leaderboard } from "./leaderboard";
@@ -12,6 +13,7 @@ import { ScoreStats } from "./score-stats";
 import { LazyInView } from "@/components/ui/lazy-in-view";
 import { useDashboardStats } from "@/lib/hooks";
 import { ScoreHighlightsSection } from "./score-highlights";
+import { SeasonBanner } from "./season-banner";
 
 // Lazy-load heavy chart components — only fetched when in view, no SSR
 const ScoreTrendChart = dynamic(
@@ -70,6 +72,7 @@ export function DashboardClient({ initialStats, games }: DashboardClientProps) {
       className="space-y-6 transition-opacity"
       style={{ opacity: isLoading ? 0.6 : 1 }}
     >
+      <SeasonBanner />
       <GameFilter games={games} value={gameId} onChange={setGameId} />
       <PeriodFilterTabs value={period} onChange={setPeriod} />
       {selectedGame && (
@@ -95,8 +98,18 @@ export function DashboardClient({ initialStats, games }: DashboardClientProps) {
       {/* Op tablet: leaderboard + streaks naast elkaar, charts naast elkaar */}
       <div className="md:grid md:grid-cols-2 md:gap-6">
         <div className="space-y-6">
-          <Leaderboard leaderboard={displayStats.leaderboard} />
+          <Leaderboard
+            leaderboard={displayStats.leaderboard}
+            guestLeaderboard={displayStats.guest_leaderboard}
+          />
           <StreakCards leaderboard={displayStats.leaderboard} />
+          <Link
+            href="/duel"
+            className="flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-bold text-sm transition-colors hover:border-[var(--color-coral)] hover:text-[var(--color-coral)]"
+            style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+          >
+            ⚔️ Bekijk het onderlinge duel
+          </Link>
         </div>
         <div className="space-y-6 mt-6 md:mt-0">
           <LazyInView>

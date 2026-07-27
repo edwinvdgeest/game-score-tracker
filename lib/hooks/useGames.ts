@@ -3,12 +3,12 @@
 import useSWR from "swr";
 import type { Game } from "@/lib/schemas";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "./fetcher";
 
 export function useGames() {
   const { data, error, isLoading, mutate } = useSWR<Game[]>(
     "/api/games",
-    fetcher,
+    jsonFetcher,
     {
       revalidateOnFocus: true,
       dedupingInterval: 30_000,

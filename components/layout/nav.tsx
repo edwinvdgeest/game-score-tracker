@@ -7,7 +7,11 @@ import { cn } from "@/lib/utils";
 import { DarkModeToggle } from "./dark-mode-toggle";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
 
-// PRIMARY_NAV is static; marathon badge is added dynamically in the component
+// PRIMARY_NAV is static; marathon badge is added dynamically in the component.
+//
+// INVARIANT: PRIMARY_NAV + de "Meer"-knop = exact 5 tabs op mobiel. Voeg hier nooit een
+// vijfde item toe — de onderste balk loopt dan over en taps komen niet meer aan (dat is
+// eerder al twee keer misgegaan). Nieuwe pagina's gaan in MORE_NAV.
 const PRIMARY_NAV = [
   { href: "/", label: "Loggen", emoji: "🎮" },
   { href: "/dashboard", label: "Scores", emoji: "🏆" },
@@ -16,10 +20,12 @@ const PRIMARY_NAV = [
 ];
 
 const MORE_NAV = [
+  { href: "/seasons", label: "Seizoen", emoji: "🏆" },
+  { href: "/duel", label: "Duel", emoji: "⚔️" },
   { href: "/history", label: "Historie", emoji: "📜" },
   { href: "/achievements", label: "Badges", emoji: "🏅" },
   { href: "/suggest", label: "Suggestie", emoji: "🎲" },
-  { href: "/guests", label: "Gasten", emoji: "🎭" },
+  { href: "/players", label: "Spelers", emoji: "👥" },
 ];
 
 const ALL_NAV = [...PRIMARY_NAV, ...MORE_NAV];
@@ -40,10 +46,14 @@ export function Nav() {
     return () => document.removeEventListener("keydown", handle);
   }, [meerOpen]);
 
-  // Sluit het menu bij routewijziging
-  useEffect(() => {
+  // Sluit het menu bij routewijziging. Dit gebeurt tijdens de render in plaats van in
+  // een effect: het is state die van de route afgeleid wordt, en een effect zou een
+  // extra render kosten waarin het menu nog open staat.
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (lastPathname !== pathname) {
+    setLastPathname(pathname);
     setMeerOpen(false);
-  }, [pathname]);
+  }
 
   const meerActive = MORE_NAV.some((item) => pathname === item.href);
 
@@ -114,7 +124,9 @@ export function Nav() {
             {meerOpen && (
               <div
                 role="menu"
-                className="absolute bottom-full right-0 mb-2 z-10 rounded-2xl border shadow-lg overflow-hidden min-w-[160px]"
+                // max-h + scroll zodat de popover niet buiten beeld groeit als MORE_NAV
+                // langer wordt — op een kleine telefoon opent hij vlak boven de balk.
+                className="absolute bottom-full right-0 mb-2 z-10 rounded-2xl border shadow-lg overflow-hidden min-w-[160px] max-h-[60vh] overflow-y-auto"
                 style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
               >
                 {MORE_NAV.map((item) => {
@@ -166,8 +178,9 @@ export function Nav() {
           </span>
         </div>
 
-        {/* Alle navigatie-items */}
-        <div className="flex-1 flex flex-col gap-1 px-3">
+        {/* Alle navigatie-items. Scrollbaar, want op een iPad in landscape is de hoogte
+            krap en zou het thema-blok onderaan van het scherm geduwd worden. */}
+        <div className="flex-1 flex flex-col gap-1 px-3 overflow-y-auto">
           {ALL_NAV.map((item) => {
             const isActive =
               item.href === "/marathon"

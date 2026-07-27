@@ -214,10 +214,8 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
             <h2 className="font-extrabold text-base">Recente potjes 📅</h2>
             <div className="space-y-2">
               {recentSessions.map((session) => (
-                <div
-                  key={session.id}
-                  className="flex items-center justify-between py-2 border-b last:border-0"
-                >
+                <div key={session.id} className="py-2 border-b last:border-0">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {session.winner ? (
                       <>
@@ -257,6 +255,15 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
                       </div>
                     )}
                   </div>
+                </div>
+                {session.notes && (
+                  <p
+                    className="text-xs font-semibold italic mt-1"
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    📝 {session.notes}
+                  </p>
+                )}
                 </div>
               ))}
             </div>

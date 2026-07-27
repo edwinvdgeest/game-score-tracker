@@ -1,9 +1,25 @@
 // Service Worker — Spelscores offline queue
-const CACHE_NAME = "spelscores-v1";
+// Bump deze naam bij elke wijziging aan de app shell of aan PRECACHE_URLS. De
+// activate-handler verwijdert elke cache waarvan de key hier niet aan matcht, en dat is
+// wat verouderde HTML-shells daadwerkelijk wegflushed. Zonder bump krijgen terugkerende
+// gebruikers via staleWhileRevalidate eerst de oude pagina te zien — en /guests bestaat
+// sinds v2 niet meer.
+const CACHE_NAME = "spelscores-v2";
 const OFFLINE_QUEUE_STORE = "offline-queue";
 
 // App shell bestanden die gecached worden
-const PRECACHE_URLS = ["/", "/dashboard", "/history", "/suggest", "/games", "/achievements"];
+const PRECACHE_URLS = [
+  "/",
+  "/dashboard",
+  "/marathon",
+  "/history",
+  "/suggest",
+  "/games",
+  "/achievements",
+  "/seasons",
+  "/duel",
+  "/players",
+];
 
 // ——————————————————————————————————————————
 // Install: cache de app shell
@@ -74,8 +90,12 @@ async function handleSessionPost(request) {
 async function networkFirst(request) {
   try {
     const response = await fetch(request);
-    const cache = await caches.open(CACHE_NAME);
-    cache.put(request, response.clone());
+    // Alleen geslaagde responses cachen. Anders belandt een 500 in de cache en krijg je
+    // die later offline terug als "antwoord" — staleWhileRevalidate checkte dit al wel.
+    if (response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
+    }
     return response;
   } catch {
     const cached = await caches.match(request);

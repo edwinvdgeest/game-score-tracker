@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import type { PeriodFilter, StatsResponse } from "@/lib/schemas";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "./fetcher";
 
 export function useDashboardStats(
   period: PeriodFilter = "all",
@@ -14,7 +14,7 @@ export function useDashboardStats(
 
   const { data, error, isLoading, mutate } = useSWR<StatsResponse>(
     `/api/stats?${params.toString()}`,
-    fetcher,
+    jsonFetcher,
     {
       revalidateOnFocus: true,
       dedupingInterval: 10_000,

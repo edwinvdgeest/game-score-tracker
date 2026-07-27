@@ -11,6 +11,7 @@ interface PeriodFilterTabsProps {
 const options: Array<{ value: PeriodFilter; label: string }> = [
   { value: "today", label: "Vandaag" },
   { value: "this_week", label: "Deze week" },
+  { value: "this_season", label: "Dit seizoen" },
   { value: "all", label: "Alles" },
   { value: "this_year", label: "Dit jaar" },
   { value: "last_year", label: "Vorig jaar" },
