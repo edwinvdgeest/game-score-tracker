@@ -13,6 +13,7 @@ import { ScoreStats } from "./score-stats";
 import { LazyInView } from "@/components/ui/lazy-in-view";
 import { useDashboardStats } from "@/lib/hooks";
 import { ScoreHighlightsSection } from "./score-highlights";
+import { SeasonBanner } from "./season-banner";
 
 // Lazy-load heavy chart components — only fetched when in view, no SSR
 const ScoreTrendChart = dynamic(
@@ -71,6 +72,7 @@ export function DashboardClient({ initialStats, games }: DashboardClientProps) {
       className="space-y-6 transition-opacity"
       style={{ opacity: isLoading ? 0.6 : 1 }}
     >
+      <SeasonBanner />
       <GameFilter games={games} value={gameId} onChange={setGameId} />
       <PeriodFilterTabs value={period} onChange={setPeriod} />
       {selectedGame && (

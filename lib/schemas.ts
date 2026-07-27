@@ -175,11 +175,20 @@ export type StatsResponse = z.infer<typeof statsResponseSchema>;
 export const periodFilterSchema = z.enum([
   "today",
   "this_week",
+  "this_season",
   "all",
   "this_year",
   "last_year",
 ]);
 export type PeriodFilter = z.infer<typeof periodFilterSchema>;
+
+// Een concreet seizoen, in tegenstelling tot "this_season" hierboven. De enum kan niet
+// dragen wélk kwartaal je bedoelt, dus dat gaat via deze aparte vorm.
+export const seasonRefSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+  quarter: z.number().int().min(1).max(4),
+});
+export type SeasonRefInput = z.infer<typeof seasonRefSchema>;
 
 // Marathon types
 export const marathonSchema = z.object({

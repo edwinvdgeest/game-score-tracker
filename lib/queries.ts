@@ -13,6 +13,18 @@ import {
   type DuelSession,
   type HeadToHead,
 } from "@/lib/duel";
+import {
+  championOf,
+  computeStandings,
+  isSameSeason,
+  seasonLabel,
+  seasonOf,
+  seasonRange,
+  seasonsWithSessions,
+  type SeasonRef,
+  type SeasonSession,
+  type SeasonStanding,
+} from "@/lib/seasons";
 import type {
   Game,
   GameWithStats,
@@ -507,6 +519,161 @@ export async function getAllSessions(): Promise<SessionDetail[]> {
     .order("played_at", { ascending: false });
   if (error) throw new Error(`Failed to fetch sessions: ${error.message}`);
   return (data ?? []) as unknown as SessionDetail[];
+}
+
+// ─── Seizoenen ────────────────────────────────────────────────────────────────
+
+export type SeasonStandingsResponse = {
+  season: SeasonRef;
+  label: string;
+  standings: SeasonStanding[];
+  champion: SeasonStanding | null;
+  /** Is dit het seizoen dat nu loopt? Dan is de stand nog niet definitief. */
+  isCurrent: boolean;
+  sessionCount: number;
+};
+
+/** Alle sessies met hun deelnemers, in de vorm die de seizoensberekening nodig heeft. */
+async function loadSeasonSessions(range?: {
+  from: string;
+  to: string;
+}): Promise<SeasonSession[]> {
+  const supabase = createServerClient();
+
+  let query = supabase
+    .from("game_sessions")
+    .select("id, played_at, winner_id")
+    .order("played_at", { ascending: false });
+
+  if (range) {
+    query = query.gte("played_at", range.from).lte("played_at", range.to);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to fetch sessions: ${error.message}`);
+
+  const rawSessions = (data ?? []) as Array<{
+    id: string;
+    played_at: string;
+    winner_id: string | null;
+  }>;
+
+  const sessionIds = rawSessions.map((s) => s.id);
+  const playersBySession = new Map<string, string[]>();
+
+  if (sessionIds.length > 0) {
+    const { data: spData, error: spError } = await supabase
+      .from("session_players")
+      .select("session_id, player_id")
+      .in("session_id", sessionIds);
+    if (spError) throw new Error(spError.message);
+
+    for (const sp of (spData ?? []) as Array<{
+      session_id: string;
+      player_id: string;
+    }>) {
+      const arr = playersBySession.get(sp.session_id) ?? [];
+      arr.push(sp.player_id);
+      playersBySession.set(sp.session_id, arr);
+    }
+  }
+
+  return rawSessions.map((s) => ({
+    id: s.id,
+    played_at: s.played_at,
+    winner_id: s.winner_id,
+    player_ids: playersBySession.get(s.id) ?? [],
+  }));
+}
+
+/** Alle seizoenen waarin gespeeld is, nieuwste eerst. */
+export async function getSeasonList(): Promise<SeasonRef[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("game_sessions")
+    .select("played_at")
+    .order("played_at", { ascending: false });
+  if (error) throw new Error(`Failed to fetch seasons: ${error.message}`);
+
+  return seasonsWithSessions(
+    ((data ?? []) as Array<{ played_at: string }>).map((s) => ({
+      id: "",
+      played_at: s.played_at,
+      winner_id: null,
+      player_ids: [],
+    }))
+  );
+}
+
+/** De stand van een seizoen. Zonder ref: het seizoen dat nu loopt. */
+export async function getSeasonStandings(
+  ref?: SeasonRef
+): Promise<SeasonStandingsResponse> {
+  const supabase = createServerClient();
+  const season = ref ?? seasonOf(new Date());
+  const range = seasonRange(season);
+
+  const [sessions, playersResult] = await Promise.all([
+    loadSeasonSessions(range),
+    // Gasten doen niet mee aan de seizoenscompetitie, net als in het hoofd-leaderboard.
+    supabase
+      .from("players")
+      .select("*")
+      .eq("is_active", true)
+      .eq("is_guest", false),
+  ]);
+
+  if (playersResult.error) throw new Error(playersResult.error.message);
+  const players = (playersResult.data ?? []) as Player[];
+
+  const standings = computeStandings(sessions, players);
+
+  return {
+    season,
+    label: seasonLabel(season),
+    standings,
+    champion: championOf(standings),
+    isCurrent: isSameSeason(season, seasonOf(new Date())),
+    sessionCount: sessions.length,
+  };
+}
+
+/**
+ * De kampioen van elk afgesloten seizoen, nieuwste eerst — de trofeeënkast.
+ *
+ * Live berekend, niet bevroren in een tabel. Dat kan omdat seizoenen uit played_at
+ * afgeleid worden; het scheelt een migratie en het blijft automatisch klopppen als je in
+ * /history een datum of score corrigeert.
+ */
+export async function getSeasonHistory(): Promise<SeasonStandingsResponse[]> {
+  const supabase = createServerClient();
+
+  const [sessions, playersResult] = await Promise.all([
+    loadSeasonSessions(),
+    supabase
+      .from("players")
+      .select("*")
+      .eq("is_active", true)
+      .eq("is_guest", false),
+  ]);
+
+  if (playersResult.error) throw new Error(playersResult.error.message);
+  const players = (playersResult.data ?? []) as Player[];
+
+  const current = seasonOf(new Date());
+
+  return seasonsWithSessions(sessions).map((season) => {
+    const inSeason = sessions.filter((s) => isSameSeason(seasonOf(s.played_at), season));
+    const standings = computeStandings(inSeason, players);
+    return {
+      season,
+      label: seasonLabel(season),
+      standings,
+      champion: championOf(standings),
+      isCurrent: isSameSeason(season, current),
+      sessionCount: inSeason.length,
+    };
+  });
 }
 
 // ─── Onderling duel ───────────────────────────────────────────────────────────

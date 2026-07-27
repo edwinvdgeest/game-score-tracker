@@ -9,6 +9,8 @@ import {
   endOfDay,
   startOfWeek,
   endOfWeek,
+  startOfQuarter,
+  endOfQuarter,
 } from "date-fns";
 import { nl } from "date-fns/locale";
 import type { PeriodFilter } from "@/lib/schemas";
@@ -108,6 +110,13 @@ export function getPeriodDateRange(
     return {
       from: startOfWeek(now, { weekStartsOn: 1 }).toISOString(),
       to: endOfWeek(now, { weekStartsOn: 1 }).toISOString(),
+    };
+  }
+  if (period === "this_season") {
+    // Seizoenen zijn kwartalen — zie lib/seasons.ts.
+    return {
+      from: startOfQuarter(now).toISOString(),
+      to: endOfQuarter(now).toISOString(),
     };
   }
   if (period === "this_year") {

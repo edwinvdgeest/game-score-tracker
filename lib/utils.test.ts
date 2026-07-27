@@ -126,6 +126,17 @@ describe("getPeriodDateRange", () => {
     expect(new Date(range.from).getDate()).toBe(13);
   });
 
+  it("begrenst 'this_season' tot het kwartaal", () => {
+    freeze(); // 15 juli 2026 = Q3
+    const range = getPeriodDateRange("this_season");
+    expect(range).not.toBeNull();
+    if (!range) return;
+    expect(new Date(range.from).getMonth()).toBe(6); // juli
+    expect(new Date(range.from).getDate()).toBe(1);
+    expect(new Date(range.to).getMonth()).toBe(8); // september
+    expect(new Date(range.to).getDate()).toBe(30);
+  });
+
   it("dekt met 'this_year' het hele jaar", () => {
     freeze();
     const range = getPeriodDateRange("this_year");
