@@ -19,10 +19,9 @@ import { BadgeUnlock } from "./badge-unlock";
 import { FinalScores } from "./final-scores";
 import { cn } from "@/lib/utils";
 import { computeWinner, parseScoreEntries } from "@/lib/stats";
+import { jsonFetcher } from "@/lib/hooks/fetcher";
 import { toast } from "sonner";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
-
-const swrFetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const GUEST_EMOJIS = ["🎭", "🌟", "🎪", "🦋", "🌈", "🎯", "🎨", "🎸", "🌺", "🦊"];
 
@@ -137,7 +136,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
           selectedStarter ? `&starter_id=${selectedStarter.id}` : ""
         }`
       : null;
-  const { data: hypeData } = useSWR<PreGameHypeResponse>(hypeKey, swrFetcher, {
+  const { data: hypeData } = useSWR<PreGameHypeResponse>(hypeKey, jsonFetcher, {
     dedupingInterval: 60_000,
     revalidateOnFocus: false,
   });
@@ -149,7 +148,7 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
       : null;
   const { data: highlightsData } = useSWR<SessionHighlightsResponse>(
     highlightsKey,
-    swrFetcher,
+    jsonFetcher,
     { revalidateOnFocus: false }
   );
 

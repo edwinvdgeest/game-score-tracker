@@ -3,12 +3,12 @@
 import useSWR from "swr";
 import type { SessionDetail } from "@/lib/queries";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "./fetcher";
 
 export function useSessions() {
   const { data, error, isLoading, mutate } = useSWR<SessionDetail[]>(
     "/api/sessions",
-    fetcher,
+    jsonFetcher,
     {
       revalidateOnFocus: true,
       dedupingInterval: 10_000,

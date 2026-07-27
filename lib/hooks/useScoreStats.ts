@@ -4,7 +4,7 @@ import useSWR from "swr";
 import type { ScoreStatsResponse } from "@/lib/queries";
 import type { PeriodFilter } from "@/lib/schemas";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "./fetcher";
 
 export function useScoreStats(period: PeriodFilter = "all", gameId = "") {
   const params = new URLSearchParams({ period });
@@ -12,7 +12,7 @@ export function useScoreStats(period: PeriodFilter = "all", gameId = "") {
 
   const { data, error, isLoading, mutate } = useSWR<ScoreStatsResponse>(
     `/api/stats/scores?${params.toString()}`,
-    fetcher,
+    jsonFetcher,
     {
       revalidateOnFocus: true,
       dedupingInterval: 10_000,

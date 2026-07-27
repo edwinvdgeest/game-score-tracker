@@ -4,6 +4,7 @@ import { useState } from "react";
 import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
 import type { Player } from "@/lib/schemas";
+import { jsonFetcher } from "@/lib/hooks/fetcher";
 
 const PLAYERS_KEY = "/api/players?include_inactive=1";
 
@@ -12,19 +13,13 @@ const PLAYER_EMOJIS = [
   "🎭", "🎪", "🌈", "🎨", "🎸", "🌺",
 ];
 
-async function fetcher(url: string) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("Ophalen mislukt");
-  return res.json() as Promise<Player[]>;
-}
-
 /** Ververst zowel de beheerlijst als de spelerslijst die de rest van de app gebruikt. */
 async function refreshPlayers() {
   await Promise.all([mutate(PLAYERS_KEY), mutate("/api/players")]);
 }
 
 export function PlayersClient() {
-  const { data: players, isLoading } = useSWR<Player[]>(PLAYERS_KEY, fetcher);
+  const { data: players, isLoading } = useSWR<Player[]>(PLAYERS_KEY, jsonFetcher);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");

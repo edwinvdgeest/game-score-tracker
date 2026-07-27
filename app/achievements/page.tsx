@@ -1,10 +1,17 @@
 import { getPlayerAchievements } from "@/lib/queries";
 import { AchievementsClient } from "@/components/achievements/achievements-client";
+import { SetupBanner } from "@/components/setup-banner";
 
 export const dynamic = "force-dynamic";
 
 export default async function AchievementsPage() {
-  const playerAchievements = await getPlayerAchievements();
+  // Only the data fetch belongs in the try — see the comment in app/dashboard/page.tsx.
+  let playerAchievements: Awaited<ReturnType<typeof getPlayerAchievements>>;
+  try {
+    playerAchievements = await getPlayerAchievements();
+  } catch {
+    return <SetupBanner />;
+  }
 
   return (
     <div className="space-y-6">

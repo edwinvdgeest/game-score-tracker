@@ -4,7 +4,7 @@ import useSWR from "swr";
 import type { HeadToHeadResponse } from "@/lib/queries";
 import type { PeriodFilter } from "@/lib/schemas";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "./fetcher";
 
 export function useHeadToHead(
   playerAId: string | null,
@@ -18,7 +18,7 @@ export function useHeadToHead(
 
   const { data, error, isLoading, mutate } = useSWR<HeadToHeadResponse>(
     key,
-    fetcher,
+    jsonFetcher,
     {
       revalidateOnFocus: true,
       dedupingInterval: 10_000,

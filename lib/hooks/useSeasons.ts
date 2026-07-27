@@ -4,7 +4,7 @@ import useSWR from "swr";
 import type { SeasonStandingsResponse } from "@/lib/queries";
 import type { SeasonRef } from "@/lib/seasons";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "./fetcher";
 
 const options = {
   revalidateOnFocus: true,
@@ -20,7 +20,7 @@ export function useSeasonStandings(ref?: SeasonRef | null) {
 
   const { data, error, isLoading, mutate } = useSWR<SeasonStandingsResponse>(
     key,
-    fetcher,
+    jsonFetcher,
     options
   );
 
@@ -31,7 +31,7 @@ export function useSeasonStandings(ref?: SeasonRef | null) {
 export function useSeasonHistory() {
   const { data, error, isLoading, mutate } = useSWR<SeasonStandingsResponse[]>(
     "/api/seasons?history=1",
-    fetcher,
+    jsonFetcher,
     options
   );
 
