@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { SeasonStandingsResponse } from "@/lib/queries";
 import type { SeasonRef } from "@/lib/seasons";
 import { isSameSeason, seasonLabel } from "@/lib/seasons";
@@ -70,6 +71,15 @@ export function SeasonsClient({ initialSeason, seasons }: SeasonsClientProps) {
       )}
 
       {history && <TrophyCabinet seasons={history} onSelect={setSelected} />}
+
+      {/* Wrapped staat bewust niet in de navigatie — het is seizoensgebonden. */}
+      <Link
+        href={`/wrapped/${selected.year}`}
+        className="flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-bold text-sm transition-colors hover:border-[var(--color-coral)] hover:text-[var(--color-coral)]"
+        style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+      >
+        📅 Jaaroverzicht {selected.year}
+      </Link>
     </div>
   );
 }

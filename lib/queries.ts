@@ -31,6 +31,7 @@ import type {
   HypeFact,
   Marathon,
   Player,
+  PlayerStats,
   TopGame,
   StatsResponse,
   PeriodFilter,
@@ -519,6 +520,233 @@ export async function getAllSessions(): Promise<SessionDetail[]> {
     .order("played_at", { ascending: false });
   if (error) throw new Error(`Failed to fetch sessions: ${error.message}`);
   return (data ?? []) as unknown as SessionDetail[];
+}
+
+// ─── Jaaroverzicht ("Wrapped") ────────────────────────────────────────────────
+
+export type WrappedResponse = {
+  year: number;
+  sessionCount: number;
+  /** Totale speelduur in minuten, voor zover ingevuld. */
+  totalMinutes: number;
+  leaderboard: PlayerStats[];
+  topGames: TopGame[];
+  /** Spel waarvan het eerste potje ooit in dit jaar viel. */
+  newGame: { game: Game; firstPlayedAt: string } | null;
+  bestScore: { score: number; player: Player; game: Game } | null;
+  /** Weekdag waarop het vaakst gespeeld is, 0 = zondag. */
+  favouriteDay: { day: number; label: string; sessions: number } | null;
+  /** Kampioenen van de afgesloten seizoenen in dit jaar. */
+  seasonChampions: Array<{ season: SeasonRef; label: string; champion: Player }>;
+  longestStreak: { player: Player; length: number } | null;
+};
+
+/**
+ * Alles voor het jaaroverzicht in één keer.
+ *
+ * Dit gaat bewust niet via getStats: die neemt een PeriodFilter en kan dus alleen "dit
+ * jaar" of "vorig jaar". Met een eigen jaargrens werkt elk jaar uit de historie, en de
+ * rekenkern blijft gedeeld — computeLeaderboard en computeStandings zijn dezelfde functies
+ * die het scorebord en de seizoenspagina gebruiken.
+ */
+export async function getWrapped(year: number): Promise<WrappedResponse> {
+  const supabase = createServerClient();
+  const from = new Date(year, 0, 1).toISOString();
+  const to = new Date(year, 11, 31, 23, 59, 59, 999).toISOString();
+
+  const [sessionsResult, playersResult, firstPlayResult] = await Promise.all([
+    supabase
+      .from("game_sessions")
+      .select("id, played_at, day_of_week, winner_id, duration_minutes, game:games(*)")
+      .gte("played_at", from)
+      .lte("played_at", to)
+      .order("played_at", { ascending: false }),
+    supabase.from("players").select("*").eq("is_guest", false),
+    // Alle potjes ooit, alleen spel en datum: nodig om te bepalen of een spel in dit jaar
+    // zijn debuut maakte.
+    supabase
+      .from("game_sessions")
+      .select("game_id, played_at")
+      .order("played_at", { ascending: true }),
+  ]);
+
+  if (sessionsResult.error) throw new Error(sessionsResult.error.message);
+  if (playersResult.error) throw new Error(playersResult.error.message);
+  if (firstPlayResult.error) throw new Error(firstPlayResult.error.message);
+
+  const rawSessions = (sessionsResult.data ?? []) as unknown as Array<{
+    id: string;
+    played_at: string;
+    day_of_week: number;
+    winner_id: string | null;
+    duration_minutes: number | null;
+    game: Game;
+  }>;
+  const players = (playersResult.data ?? []) as Player[];
+
+  // Deelnemers en scores per potje.
+  const sessionIds = rawSessions.map((s) => s.id);
+  const scoresBySession = new Map<
+    string,
+    Array<{ player: Player; score: number | null }>
+  >();
+
+  if (sessionIds.length > 0) {
+    const { data: spData, error: spError } = await supabase
+      .from("session_players")
+      .select("session_id, score, player:players(*)")
+      .in("session_id", sessionIds);
+    if (spError) throw new Error(spError.message);
+
+    for (const sp of spData ?? []) {
+      const sessionId = sp.session_id as string;
+      const arr = scoresBySession.get(sessionId) ?? [];
+      arr.push({
+        player: sp.player as unknown as Player,
+        score: sp.score as number | null,
+      });
+      scoresBySession.set(sessionId, arr);
+    }
+  }
+
+  const statSessions: StatSession[] = rawSessions.map((s) => ({
+    id: s.id,
+    played_at: s.played_at,
+    winner_id: s.winner_id,
+    player_ids: (scoresBySession.get(s.id) ?? []).map((entry) => entry.player.id),
+  }));
+
+  const leaderboard = computeLeaderboard(statSessions, players);
+
+  // Meest gespeelde spellen.
+  const playCounts = new Map<string, { game: Game; count: number }>();
+  for (const session of rawSessions) {
+    const existing = playCounts.get(session.game.id);
+    if (existing) existing.count++;
+    else playCounts.set(session.game.id, { game: session.game, count: 1 });
+  }
+  const topGames: TopGame[] = [...playCounts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+    .map(({ game, count }) => ({ game, play_count: count }));
+
+  // Nieuw spel van het jaar: het eerste potje ooit van dat spel viel in dit jaar. Bij
+  // meerdere pakken we het spel dat daarna het vaakst gespeeld is.
+  const firstPlayByGame = new Map<string, string>();
+  for (const row of (firstPlayResult.data ?? []) as Array<{
+    game_id: string;
+    played_at: string;
+  }>) {
+    if (!firstPlayByGame.has(row.game_id)) {
+      firstPlayByGame.set(row.game_id, row.played_at);
+    }
+  }
+  let newGame: WrappedResponse["newGame"] = null;
+  for (const { game, count } of [...playCounts.values()].sort(
+    (a, b) => b.count - a.count
+  )) {
+    const firstPlayedAt = firstPlayByGame.get(game.id);
+    if (firstPlayedAt && new Date(firstPlayedAt).getFullYear() === year) {
+      newGame = { game, firstPlayedAt };
+      break;
+    }
+    void count;
+  }
+
+  // Hoogste score van het jaar.
+  let bestScore: WrappedResponse["bestScore"] = null;
+  for (const session of rawSessions) {
+    for (const entry of scoresBySession.get(session.id) ?? []) {
+      if (entry.score === null) continue;
+      // Bij een spel waar de laagste score wint zegt een hoge score niets.
+      if (session.game.lowest_score_wins) continue;
+      if (!bestScore || entry.score > bestScore.score) {
+        bestScore = { score: entry.score, player: entry.player, game: session.game };
+      }
+    }
+  }
+
+  // Favoriete speeldag.
+  const dayCounts = new Array(7).fill(0) as number[];
+  for (const session of rawSessions) {
+    const day = session.day_of_week;
+    if (day >= 0 && day <= 6) dayCounts[day] = (dayCounts[day] ?? 0) + 1;
+  }
+  let favouriteDay: WrappedResponse["favouriteDay"] = null;
+  for (let day = 0; day < 7; day++) {
+    const sessions = dayCounts[day] ?? 0;
+    if (sessions > 0 && (!favouriteDay || sessions > favouriteDay.sessions)) {
+      favouriteDay = { day, label: DAY_LABELS[day] ?? "", sessions };
+    }
+  }
+
+  // Seizoenskampioenen van dit jaar, alleen van afgesloten kwartalen.
+  const seasonSessions: SeasonSession[] = rawSessions.map((s) => ({
+    id: s.id,
+    played_at: s.played_at,
+    winner_id: s.winner_id,
+    player_ids: (scoresBySession.get(s.id) ?? []).map((entry) => entry.player.id),
+  }));
+  const currentSeason = seasonOf(new Date());
+  const seasonChampions: WrappedResponse["seasonChampions"] = [];
+  for (const season of seasonsWithSessions(seasonSessions)) {
+    if (isSameSeason(season, currentSeason)) continue;
+    const inSeason = seasonSessions.filter((s) =>
+      isSameSeason(seasonOf(s.played_at), season)
+    );
+    const champion = championOf(computeStandings(inSeason, players));
+    if (champion) {
+      seasonChampions.push({
+        season,
+        label: seasonLabel(season),
+        champion: champion.player,
+      });
+    }
+  }
+
+  const longestStreakEntry = leaderboard.reduce<PlayerStats | null>(
+    (best, entry) =>
+      !best || entry.longest_streak > best.longest_streak ? entry : best,
+    null
+  );
+
+  return {
+    year,
+    sessionCount: rawSessions.length,
+    totalMinutes: rawSessions.reduce(
+      (sum, s) => sum + (s.duration_minutes ?? 0),
+      0
+    ),
+    leaderboard,
+    topGames,
+    newGame,
+    bestScore,
+    favouriteDay,
+    seasonChampions,
+    longestStreak:
+      longestStreakEntry && longestStreakEntry.longest_streak > 1
+        ? {
+            player: longestStreakEntry.player,
+            length: longestStreakEntry.longest_streak,
+          }
+        : null,
+  };
+}
+
+/** Jaren waarin gespeeld is, nieuwste eerst. */
+export async function getPlayedYears(): Promise<number[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("game_sessions")
+    .select("played_at")
+    .order("played_at", { ascending: false });
+  if (error) throw new Error(`Failed to fetch years: ${error.message}`);
+
+  const years = new Set<number>();
+  for (const row of (data ?? []) as Array<{ played_at: string }>) {
+    years.add(new Date(row.played_at).getFullYear());
+  }
+  return [...years].sort((a, b) => b - a);
 }
 
 // ─── Seizoenen ────────────────────────────────────────────────────────────────
