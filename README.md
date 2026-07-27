@@ -91,10 +91,18 @@ zijn er bewust uitgetild.
 
 | Scherm | Pad | Beschrijving |
 |--------|-----|-------------|
-| Quick Log | `/` | Game kiezen → winnaar → confetti 🎉 |
-| Scorebord | `/dashboard` | Leaderboard, streaks, grafieken |
-| Spellen | `/games` | Lijst beheren, nieuw spel toevoegen |
+| Quick Log | `/` | Spel kiezen → beginner → scores → confetti 🎉. Met notitieveld en een "een jaar geleden"-kaartje |
+| Scorebord | `/dashboard` | Leaderboard, streaks, grafieken, gastenblok, seizoensbanner |
+| Marathon | `/marathon` | Live scorebord voor een spellenavond, met eindstand |
+| Spellen | `/games` | Lijst beheren, favorieten, archiveren, nieuw spel toevoegen |
+| Spel | `/games/[id]` | Stats per spel: wie wint, speelduur, recente potjes |
+| Seizoenen | `/seasons` | Kwartaalranglijst (3/1/0) en de trofeeënkast |
+| Duel | `/duel` | Onderlinge stand per spelerspaar, nemesis-spel, grootste marge |
+| Historie | `/history` | Alle potjes; scores, winnaar, datum en notitie corrigeren |
 | Badges | `/achievements` | 40 badges per speler, gegroepeerd per categorie |
+| Suggestie | `/suggest` | "Wat zullen we spelen?" op basis van wat lang niet gespeeld is |
+| Spelers | `/players` | Spelers en gasten beheren, wie standaard meedoet |
+| Jaaroverzicht | `/wrapped/[year]` | Deelbare jaarkaart met de cijfers van dat jaar |
 
 ## Tech Stack
 
