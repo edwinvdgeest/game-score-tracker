@@ -42,6 +42,8 @@ import type {
   CreatePlayerInput,
   UpdatePlayerInput,
   SessionBadge,
+  ParentGameRef,
+  GameMetadataPatch,
 } from "@/lib/schemas";
 
 /** Fetch all active players (inclusief gastspelers) */
@@ -153,12 +155,31 @@ export async function deleteOrDeactivatePlayer(id: string): Promise<void> {
   }
 }
 
+/**
+ * Kolommen voor lijstweergaven. Bewust zonder description/rules_summary: die zijn
+ * samen al gauw tientallen KB's over alle spellen, worden op /api/games bij elke
+ * quick-log paginalading meegestuurd en door de service worker gecachet, terwijl
+ * alleen de detailpagina ze nodig heeft.
+ */
+const GAME_LIST_COLUMNS =
+  "id, name, emoji, category, min_players, max_players, difficulty, created_at, " +
+  "is_favorite, is_archived, lowest_score_wins, bgg_id, image_url, thumbnail_url, " +
+  "year_published, bgg_rating, playing_time_minutes, variant_note, parent_game_id, " +
+  "text_source, text_locked, bgg_synced_at";
+
+/** Hoofdspel-velden die een variant kan erven, als embedded select. */
+const PARENT_EMBED =
+  "parent:parent_game_id ( id, name, emoji, image_url, thumbnail_url, description, rules_summary )";
+
 /** Fetch all games ordered alphabetically */
 export async function getGames(): Promise<Game[]> {
   const supabase = createServerClient();
-  const { data, error } = await supabase.from("games").select("*").order("name");
+  const { data, error } = await supabase
+    .from("games")
+    .select(GAME_LIST_COLUMNS)
+    .order("name");
   if (error) throw new Error(`Failed to fetch games: ${error.message}`);
-  return (data ?? []) as Game[];
+  return (data ?? []) as unknown as Game[];
 }
 
 /** Fetch all games enriched with mini-stats (session count, last played, top winner) */
@@ -166,7 +187,9 @@ export async function getGamesWithStats(): Promise<GameWithStats[]> {
   const supabase = createServerClient();
 
   const [gamesResult, sessionsResult, playersResult] = await Promise.all([
-    supabase.from("games").select("*"),
+    // Eén embedded select in plaats van een tweede ronde per variant: anders
+    // levert de doosfoto-overerving een N+1 op de spellenpagina op.
+    supabase.from("games").select(`${GAME_LIST_COLUMNS}, ${PARENT_EMBED}`),
     supabase
       .from("game_sessions")
       .select("game_id, played_at, winner_id")
@@ -177,7 +200,7 @@ export async function getGamesWithStats(): Promise<GameWithStats[]> {
   if (gamesResult.error) throw new Error(`Failed to fetch games: ${gamesResult.error.message}`);
   if (sessionsResult.error) throw new Error(`Failed to fetch sessions: ${sessionsResult.error.message}`);
 
-  const games = (gamesResult.data ?? []) as Game[];
+  const games = (gamesResult.data ?? []) as unknown as (Game & { parent?: ParentGameRef | null })[];
   const sessions = sessionsResult.data ?? [];
   const players = (playersResult.data ?? []) as { id: string; name: string; emoji: string }[];
 
@@ -251,7 +274,7 @@ export async function getGamesSortedByRecent(): Promise<Game[]> {
       .from("game_sessions")
       .select("game_id, played_at")
       .order("played_at", { ascending: false }),
-    supabase.from("games").select("*").eq("is_archived", false),
+    supabase.from("games").select(`${GAME_LIST_COLUMNS}, ${PARENT_EMBED}`).eq("is_archived", false),
   ]);
 
   if (sessionsResult.error)
@@ -259,7 +282,7 @@ export async function getGamesSortedByRecent(): Promise<Game[]> {
   if (gamesResult.error)
     throw new Error(`Failed to fetch games: ${gamesResult.error.message}`);
 
-  const games = (gamesResult.data ?? []) as Game[];
+  const games = (gamesResult.data ?? []) as unknown as Game[];
   const sessions = sessionsResult.data ?? [];
 
   // Build a map of game_id → last played date
@@ -373,8 +396,44 @@ export async function updateGame(
   return data as Game;
 }
 
+/**
+ * Schrijft metadata weg. Bewust een aparte functie met een eigen type naast
+ * updateGame: zo kunnen het door-de-gebruiker-ingevulde pad en het verrijkingspad
+ * elkaars velden niet overschrijven.
+ */
+export async function updateGameMetadata(
+  id: string,
+  patch: GameMetadataPatch
+): Promise<Game> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("games")
+    .update(patch)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(`Failed to update game metadata: ${error.message}`);
+  if (!data) throw new Error("No game returned after metadata update");
+  return data as Game;
+}
+
+/** Spellen die nog verrijkt moeten worden; hoofdspellen eerst. */
+export async function getGamesNeedingMetadata(force = false): Promise<Game[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("games")
+    .select("*")
+    // Hoofdspellen vóór varianten: een variant erft het bgg_id van zijn parent,
+    // dus die moet als eerste een match hebben.
+    .order("parent_game_id", { ascending: true, nullsFirst: true })
+    .order("name");
+  if (error) throw new Error(`Failed to fetch games: ${error.message}`);
+  const games = (data ?? []) as Game[];
+  return force ? games : games.filter((g) => !g.bgg_synced_at);
+}
+
 export type GameDetailStats = {
-  game: Game;
+  game: Game & { parent?: ParentGameRef | null };
   totalSessions: number;
   lastPlayedAt: string | null;
   avgDuration: number | null;
@@ -393,7 +452,7 @@ export async function getGameStats(gameId: string): Promise<GameDetailStats | nu
   const supabase = createServerClient();
 
   const [gameResult, sessionsResult, playersResult] = await Promise.all([
-    supabase.from("games").select("*").eq("id", gameId).single(),
+    supabase.from("games").select(`*, ${PARENT_EMBED}`).eq("id", gameId).single(),
     supabase
       .from("game_sessions")
       .select(
@@ -408,7 +467,7 @@ export async function getGameStats(gameId: string): Promise<GameDetailStats | nu
   if (sessionsResult.error) throw new Error(sessionsResult.error.message);
   if (playersResult.error) throw new Error(playersResult.error.message);
 
-  const game = gameResult.data as Game;
+  const game = gameResult.data as unknown as GameDetailStats["game"];
   const sessions = sessionsResult.data ?? [];
   const players = (playersResult.data ?? []) as Player[];
   const totalSessions = sessions.length;
@@ -447,7 +506,7 @@ export async function getGameSuggestion(playerCount?: number): Promise<Game[]> {
   const supabase = createServerClient();
 
   const [gamesResult, sessionsResult] = await Promise.all([
-    supabase.from("games").select("*").eq("is_archived", false),
+    supabase.from("games").select(`${GAME_LIST_COLUMNS}, ${PARENT_EMBED}`).eq("is_archived", false),
     supabase
       .from("game_sessions")
       .select("game_id, played_at")
@@ -456,7 +515,7 @@ export async function getGameSuggestion(playerCount?: number): Promise<Game[]> {
 
   if (gamesResult.error) throw new Error(gamesResult.error.message);
 
-  let games = (gamesResult.data ?? []) as Game[];
+  let games = (gamesResult.data ?? []) as unknown as Game[];
   const sessions = sessionsResult.data ?? [];
 
   // Filter by player count if provided

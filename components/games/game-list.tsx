@@ -6,6 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { nl } from "date-fns/locale";
 import { Star, Archive, ArchiveX, ChevronRight } from "lucide-react";
 import type { GameWithStats } from "@/lib/schemas";
+import { GameCover } from "@/components/games/game-cover";
 import { cn } from "@/lib/utils";
 
 type SortOption = "meest_gespeeld" | "laatst_gespeeld" | "alfabetisch";
@@ -230,7 +231,7 @@ function GameCard({ game, onFavorite, onArchive, formatLastPlayed, archived }: G
           "hover:border-[var(--color-coral)] active:scale-[0.98] pr-20"
         )}
       >
-        <span className="text-2xl flex-shrink-0">{game.emoji}</span>
+        <GameCover game={game} size="sm" />
         <div className="flex-1 min-w-0">
           <div className="font-extrabold text-sm flex items-center gap-1.5">
             {game.name}

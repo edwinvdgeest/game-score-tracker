@@ -66,6 +66,27 @@ export function AddGameForm() {
         throw new Error("Opslaan mislukt");
       }
 
+      const created = (await response.json()) as { id?: string; name?: string };
+      const createdName = name.trim();
+
+      // Metadata ophalen duurt 5-20 seconden — daar wachten we het formulier niet
+      // op. Het spel staat meteen in de lijst met zijn emoji; de doosfoto komt er
+      // na de refresh bij. Sluit de gebruiker de pagina eerder, dan vangen het
+      // backfill-script en de knop op de detailpagina het op.
+      if (created?.id) {
+        void fetch(`/api/games/${created.id}/enrich`, { method: "POST" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((result) => {
+            if (result?.status === "ok") {
+              toast.success(`🖼️ Metadata voor ${createdName} opgehaald`);
+              router.refresh();
+            }
+          })
+          .catch(() => {
+            // Stil falen: het spel is al opgeslagen, alleen de metadata ontbreekt nog.
+          });
+      }
+
       toast.success(`${emoji} ${name} toegevoegd! 🎉`);
       setName("");
       setEmoji("🎲");
