@@ -49,6 +49,23 @@ END $$;
 
 -- Bewust NIET uniek: tien "Keer op Keer"-varianten wijzen allemaal naar dezelfde
 -- BGG-entry, en dat is hier precies de bedoeling.
+--
+-- Een eerdere schets van deze migratie had hier wél een unieke index. Die zou het
+-- verrijken van varianten stukmaken, en CREATE INDEX IF NOT EXISTS repareert dat
+-- niet: die ziet alleen dat de naam al bestaat en slaat stil over. Vandaar dit
+-- blok, dat een unieke variant eerst weggooit.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_index i
+    JOIN pg_class c ON c.oid = i.indexrelid
+    WHERE c.relname = 'idx_games_bgg_id' AND i.indisunique
+  ) THEN
+    RAISE NOTICE 'idx_games_bgg_id was uniek; opnieuw aanmaken zonder uniciteit.';
+    DROP INDEX idx_games_bgg_id;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_games_bgg_id
   ON games (bgg_id) WHERE bgg_id IS NOT NULL;
 
