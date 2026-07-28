@@ -40,6 +40,9 @@ export const updatePlayerSchema = z.object({
 });
 export type UpdatePlayerInput = z.infer<typeof updatePlayerSchema>;
 
+export const textSourceSchema = z.enum(["seed", "bgg", "claude", "handmatig"]);
+export type TextSource = z.infer<typeof textSourceSchema>;
+
 export const gameSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -52,13 +55,38 @@ export const gameSchema = z.object({
   is_favorite: z.boolean().optional().default(false),
   is_archived: z.boolean().optional().default(false),
   lowest_score_wins: z.boolean().optional().default(false),
+  // Metadata (migratie 010). Allemaal nullable: bestaande rijen hebben niets.
+  bgg_id: z.number().int().nullable().optional(),
+  image_url: z.string().nullable().optional(),
+  thumbnail_url: z.string().nullable().optional(),
+  year_published: z.number().int().nullable().optional(),
+  // PostgREST geeft numeric-kolommen terug als string ("7.90"), niet als number.
+  // z.coerce voorkomt dat dat ongemerkt in de UI belandt.
+  bgg_rating: z.coerce.number().nullable().optional(),
+  bgg_weight: z.coerce.number().nullable().optional(),
+  playing_time_minutes: z.number().int().nullable().optional(),
+  description: z.string().nullable().optional(),
+  rules_summary: z.string().nullable().optional(),
+  variant_note: z.string().nullable().optional(),
+  parent_game_id: z.string().uuid().nullable().optional(),
+  text_source: textSourceSchema.nullable().optional(),
+  text_locked: z.boolean().optional().default(false),
+  bgg_synced_at: z.string().nullable().optional(),
+  bgg_sync_error: z.string().nullable().optional(),
 });
 export type Game = z.infer<typeof gameSchema>;
+
+/** De velden van een hoofdspel die een variant kan erven. */
+export type ParentGameRef = Pick<
+  Game,
+  "id" | "name" | "emoji" | "image_url" | "thumbnail_url" | "description" | "rules_summary"
+>;
 
 export type GameWithStats = Game & {
   totalSessions: number;
   lastPlayedAt: string | null;
   topWinner: { name: string; emoji: string; winPercentage: number } | null;
+  parent?: ParentGameRef | null;
 };
 
 export const gameSessionSchema = z.object({
@@ -113,6 +141,43 @@ export const createGameSchema = z.object({
   lowest_score_wins: z.boolean().optional().default(false),
 });
 export type CreateGameInput = z.infer<typeof createGameSchema>;
+
+// LET OP: createGameSchema is het schema voor door de gebruiker ingevulde velden.
+// Metadata (image_url, description, ...) hoort hier NOOIT in. De PUT-route gebruikt
+// createGameSchema.partial(), dus alles wat hierin staat wordt client-schrijfbaar —
+// en het bewerkformulier doet een volledige PUT, dus verse metadata zou overschreven
+// worden door een pagina die vóór het verrijken is gerenderd.
+
+/** Handmatig aanpasbare tekstvelden (PATCH /api/games/[id]). */
+export const updateGameTextSchema = z.object({
+  description: z.string().max(1000).nullable().optional(),
+  rules_summary: z.string().max(3000).nullable().optional(),
+  variant_note: z.string().max(500).nullable().optional(),
+  parent_game_id: z.string().uuid().nullable().optional(),
+});
+export type UpdateGameTextInput = z.infer<typeof updateGameTextSchema>;
+
+/**
+ * Interne schrijfvorm voor metadata. Bewust een TypeScript-type en geen Zod-schema:
+ * dit wordt nooit uit een request body geparsed, alleen server-side samengesteld.
+ */
+export type GameMetadataPatch = {
+  bgg_id?: number | null;
+  image_url?: string | null;
+  thumbnail_url?: string | null;
+  year_published?: number | null;
+  bgg_rating?: number | null;
+  bgg_weight?: number | null;
+  playing_time_minutes?: number | null;
+  description?: string | null;
+  rules_summary?: string | null;
+  variant_note?: string | null;
+  parent_game_id?: string | null;
+  text_source?: TextSource | null;
+  text_locked?: boolean;
+  bgg_synced_at?: string | null;
+  bgg_sync_error?: string | null;
+};
 
 // Stats types (derived, not from DB directly)
 export const playerStatsSchema = z.object({

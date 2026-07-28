@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Search, X } from "lucide-react";
 import type { Game } from "@/lib/schemas";
+import { GameCover } from "@/components/games/game-cover";
 import { cn } from "@/lib/utils";
 
 interface GameGridProps {
@@ -65,7 +66,7 @@ export function GameGrid({ games, selectedGameId, onSelect }: GameGridProps) {
                 : "border-[var(--border)] bg-[var(--card)] hover:border-[color-mix(in_srgb,var(--color-coral)_50%,transparent)]"
             )}
           >
-            <span className="text-2xl mb-1">{game.emoji}</span>
+            <GameCover game={game} size="md" className="mb-1" />
             <span className="text-xs font-bold leading-tight line-clamp-2">
               {game.name}
             </span>

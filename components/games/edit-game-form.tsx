@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { Game, GameCategory } from "@/lib/schemas";
@@ -36,6 +36,21 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
   const [lowestScoreWins, setLowestScoreWins] = useState(game.lowest_score_wins ?? false);
   const [minPlayers, setMinPlayers] = useState<string>(String(game.min_players ?? 2));
   const [maxPlayers, setMaxPlayers] = useState<string>(String(game.max_players ?? 4));
+  const [description, setDescription] = useState(game.description ?? "");
+  const [rulesSummary, setRulesSummary] = useState(game.rules_summary ?? "");
+  const [variantNote, setVariantNote] = useState(game.variant_note ?? "");
+  const [parentGameId, setParentGameId] = useState(game.parent_game_id ?? "");
+  const [textOpen, setTextOpen] = useState(false);
+  const [otherGames, setOtherGames] = useState<Game[]>([]);
+
+  // Alleen ophalen als het tekstblok daadwerkelijk opengaat.
+  useEffect(() => {
+    if (!textOpen || otherGames.length > 0) return;
+    void fetch("/api/games")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((games: Game[]) => setOtherGames(games.filter((g) => g.id !== game.id)))
+      .catch(() => setOtherGames([]));
+  }, [textOpen, otherGames.length, game.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,6 +73,28 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
       });
 
       if (!response.ok) throw new Error("Opslaan mislukt");
+
+      // Tekst en variant-koppeling lopen via PATCH: die route zet text_locked,
+      // zodat het automatisch verrijken deze tekst daarna met rust laat.
+      const textChanged =
+        description !== (game.description ?? "") ||
+        rulesSummary !== (game.rules_summary ?? "") ||
+        variantNote !== (game.variant_note ?? "") ||
+        parentGameId !== (game.parent_game_id ?? "");
+
+      if (textChanged) {
+        const patchResponse = await fetch(`/api/games/${game.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            description: description.trim() || null,
+            rules_summary: rulesSummary.trim() || null,
+            variant_note: variantNote.trim() || null,
+            parent_game_id: parentGameId || null,
+          }),
+        });
+        if (!patchResponse.ok) throw new Error("Opslaan van de tekst mislukt");
+      }
 
       toast.success(`${emoji} ${name} bijgewerkt! ✏️`);
       onClose();
@@ -209,6 +246,101 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
           </div>
           <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>spelers</span>
         </div>
+      </div>
+
+      {/* Omschrijving en speluitleg */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setTextOpen(!textOpen)}
+          className="w-full flex items-center justify-between py-2 px-3 rounded-xl font-bold text-sm cursor-pointer hover:bg-[var(--muted)]"
+          style={{ backgroundColor: "var(--color-warm-gray)" }}
+          aria-expanded={textOpen}
+        >
+          <span>✍️ Omschrijving en speluitleg</span>
+          <span className="text-xs">{textOpen ? "▲" : "▼"}</span>
+        </button>
+
+        {textOpen && (
+          <div className="space-y-3 px-1">
+            <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              Wat je hier zelf invult blijft staan: het automatisch ophalen laat een
+              handmatig aangepaste tekst met rust.
+            </p>
+
+            <div className="space-y-1">
+              <label htmlFor="edit-parent-game" className="text-sm font-bold block">
+                Variant van
+              </label>
+              <select
+                id="edit-parent-game"
+                value={parentGameId}
+                onChange={(e) => setParentGameId(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)]"
+                style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
+              >
+                <option value="">— geen, dit is een eigen spel —</option>
+                {otherGames.map((other) => (
+                  <option key={other.id} value={other.id}>
+                    {other.emoji} {other.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                Een variant erft de doosfoto en de uitleg van het hoofdspel.
+              </p>
+            </div>
+
+            {parentGameId && (
+              <div className="space-y-1">
+                <label htmlFor="edit-variant-note" className="text-sm font-bold block">
+                  Wat is er anders?
+                </label>
+                <input
+                  id="edit-variant-note"
+                  type="text"
+                  value={variantNote}
+                  onChange={(e) => setVariantNote(e.target.value)}
+                  placeholder="bijv. scoreblad met kettingen"
+                  className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)]"
+                  style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
+                />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label htmlFor="edit-description" className="text-sm font-bold block">
+                Omschrijving
+              </label>
+              <textarea
+                id="edit-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                maxLength={1000}
+                placeholder="Twee of drie zinnen: waar gaat het spel over?"
+                className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)]"
+                style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label htmlFor="edit-rules" className="text-sm font-bold block">
+                Speluitleg
+              </label>
+              <textarea
+                id="edit-rules"
+                value={rulesSummary}
+                onChange={(e) => setRulesSummary(e.target.value)}
+                rows={8}
+                maxLength={3000}
+                placeholder={"Doel: ...\n\nVerloop: ...\n\nWinnen: ...\n\nTip: ..."}
+                className="w-full px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)]"
+                style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2">

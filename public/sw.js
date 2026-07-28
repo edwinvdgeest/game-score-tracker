@@ -4,7 +4,11 @@
 // wat verouderde HTML-shells daadwerkelijk wegflushed. Zonder bump krijgen terugkerende
 // gebruikers via staleWhileRevalidate eerst de oude pagina te zien — en /guests bestaat
 // sinds v2 niet meer.
-const CACHE_NAME = "spelscores-v2";
+const CACHE_NAME = "spelscores-v3";
+// Aparte, niet-geversioneerde cache voor geoptimaliseerde afbeeldingen. Bewust los
+// van CACHE_NAME: anders gooit elke shell-bump alle doosfoto's weg en haalt de app
+// ze allemaal opnieuw op.
+const IMAGE_CACHE_NAME = "spelscores-images-v1";
 const OFFLINE_QUEUE_STORE = "offline-queue";
 
 // App shell bestanden die gecached worden
@@ -39,7 +43,11 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+        Promise.all(
+          keys
+            .filter((k) => k !== CACHE_NAME && k !== IMAGE_CACHE_NAME)
+            .map((k) => caches.delete(k))
+        )
       )
       .then(() => self.clients.claim())
   );
@@ -61,6 +69,16 @@ self.addEventListener("fetch", (event) => {
   // API routes: network-first, fallback naar cache
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(networkFirst(request));
+    return;
+  }
+
+  // Geoptimaliseerde afbeeldingen: cache-first in een eigen cache.
+  // Niet stale-while-revalidate: dat zou bij elk bezoek aan /games een
+  // achtergrond-download per doosfoto starten. De URL bevat url+w+q, dus een
+  // gewijzigde afbeelding levert vanzelf een andere cache-sleutel op — er valt
+  // niets te invalideren.
+  if (url.pathname === "/_next/image") {
+    event.respondWith(cacheFirst(request, IMAGE_CACHE_NAME));
     return;
   }
 
@@ -103,6 +121,19 @@ async function networkFirst(request) {
       status: 503,
       headers: { "Content-Type": "application/json" },
     });
+  }
+}
+
+async function cacheFirst(request, cacheName) {
+  const cache = await caches.open(cacheName);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  try {
+    const response = await fetch(request);
+    if (response.ok) cache.put(request, response.clone());
+    return response;
+  } catch {
+    return new Response("Offline", { status: 503 });
   }
 }
 

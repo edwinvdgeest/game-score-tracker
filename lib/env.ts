@@ -4,12 +4,26 @@ const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
+  // Alle drie optioneel: zonder deze variabelen draait de app precies zoals voorheen.
+  // Zonder ANTHROPIC_API_KEY wordt het genereren van Nederlandse teksten stil
+  // overgeslagen; BGG-afbeeldingen werken gewoon door.
+  //
+  // Let op: dit bestand wordt ook geïmporteerd door lib/supabase/client.ts, een
+  // client-module. In de browser is ANTHROPIC_API_KEY altijd undefined — Next
+  // inlinet alleen NEXT_PUBLIC_*, dus de sleutel lekt niet, en isClaudeEnabled()
+  // geeft client-side terecht false.
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  BGG_BASE_URL: z.string().url().optional(),
+  ENRICH_TOKEN: z.string().min(1).optional(),
 });
 
 const parsed = envSchema.safeParse({
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  BGG_BASE_URL: process.env.BGG_BASE_URL,
+  ENRICH_TOKEN: process.env.ENRICH_TOKEN,
 });
 
 if (!parsed.success) {
@@ -38,4 +52,7 @@ export const env = parsed.success
       NEXT_PUBLIC_SUPABASE_ANON_KEY:
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
       SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      BGG_BASE_URL: process.env.BGG_BASE_URL,
+      ENRICH_TOKEN: process.env.ENRICH_TOKEN,
     };

@@ -21,6 +21,8 @@ Score tracker voor Edwin & Lisanne (en soms Minou). Score loggen in 2 taps, dire
 | 8 | `007_lowest_score_wins.sql` | Laagste score wint per spel |
 | 9 | `008_player_management.sql` | `include_by_default` voor spelersbeheer |
 | 10 | `009_backfill_session_players.sql` | Ontbrekende deelnemersrijen aanvullen |
+| 11 | `010_game_metadata.sql` | Doosfoto's, omschrijving, speluitleg en variant-koppeling |
+| 12 | `011_seed_dutch_game_text.sql` | Nederlandse teksten voor de bestaande spellen |
 
 > Let op: er zijn twee bestanden met prefix `002`. Draai `002_seed_data.sql` vóór
 > `002_nullable_winner_cleanup.sql`.
@@ -30,6 +32,11 @@ Score tracker voor Edwin & Lisanne (en soms Minou). Score loggen in 2 taps, dire
 >
 > `009_backfill_session_players.sql` is niet terug te draaien. Lees het waarschuwingsblok
 > bovenaan dat bestand en exporteer eerst een CSV-backup.
+>
+> `011_seed_dutch_game_text.sql` koppelt op spel-id en is daarmee geschreven voor de
+> bestaande database. Bij een verse installatie doet het bestand niets — dat is geen
+> fout. Een spel waarvan de tekst met de hand is aangepast (`text_locked`) wordt nooit
+> overschreven, ook niet als je de migratie opnieuw draait.
 
 ### 2. Environment instellen
 
@@ -40,7 +47,10 @@ cp .env.example .env.local
 Vul in `.env.local`:
 - `NEXT_PUBLIC_SUPABASE_URL` — te vinden in Supabase → Project Settings → API
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — te vinden op dezelfde pagina
-- `SUPABASE_SERVICE_ROLE_KEY` — alleen nodig voor het import script (API keys sectie)
+- `SUPABASE_SERVICE_ROLE_KEY` — alleen nodig voor de scripts (API keys sectie)
+
+Optioneel, zie de toelichting in `.env.example`: `ANTHROPIC_API_KEY`, `BGG_BASE_URL`
+en `ENRICH_TOKEN`. Zonder die drie draait alles gewoon.
 
 ### 3. Installeren en starten
 
@@ -62,6 +72,28 @@ npx tsx scripts/import-google-sheet.ts /pad/naar/export.csv
 Verwachte CSV-kolommen: `Datum, Game, Winnaar, Beginner, Score Edwin, Score Lisanne, Weekdag`
 
 Het script slaat dubbele rijen automatisch over op basis van datum + spel.
+
+## Spel-metadata ophalen
+
+Haalt bij BoardGameGeek de doosfoto, het jaartal, de speelduur en de rating op voor
+alle spellen die dat nog niet hebben:
+
+```bash
+npx tsx scripts/backfill-game-metadata.ts
+```
+
+Opties: `--force` (ook al opgehaalde spellen), `--only="<naam>"`, `--limit=N`,
+`--dry-run`, `--no-claude`.
+
+Het script gaat bewust langzaam — BoardGameGeek houdt een streng verzoekenlimiet aan,
+dus alles loopt na elkaar met een pauze van 2,5 seconde per verzoek. Reken op zo'n twee
+minuten voor de hele lijst. Varianten (de Qwixx-scorebladen, de Keer op Keer-niveaus)
+nemen het BGG-id van hun hoofdspel over en kosten geen extra zoekopdracht.
+
+Aan het eind toont het script welke spellen geen match hadden. Nederlandse titels staan
+op BoardGameGeek vaak onder hun oorspronkelijke naam; zet zo'n vertaling in
+`BGG_NAME_ALIASES` in `lib/bgg-match.ts`, of koppel het spel in de app met de knop
+"Verkeerd spel?" op de spelpagina.
 
 ## Tests
 

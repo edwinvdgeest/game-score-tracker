@@ -12,6 +12,8 @@ import {
   Cell,
 } from "recharts";
 import { EditGameForm } from "@/components/games/edit-game-form";
+import { GameCover } from "@/components/games/game-cover";
+import { GameInfo } from "@/components/games/game-info";
 import { formatDate } from "@/lib/utils";
 import type { GameDetailStats, StarterStat } from "@/lib/queries";
 
@@ -38,7 +40,7 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-5xl mb-1">{game.emoji}</div>
+          <GameCover game={game} size="lg" priority className="mb-2" />
           <h1 className="text-2xl font-black" style={{ color: "var(--foreground)" }}>
             {game.name}
           </h1>
@@ -89,6 +91,9 @@ export function GameDetailClient({ stats, starterStat }: GameDetailClientProps) 
       {editing && (
         <EditGameForm game={game} onClose={() => setEditing(false)} />
       )}
+
+      {/* Omschrijving, speluitleg en BGG-gegevens */}
+      <GameInfo game={game} />
 
       {/* Stat kaarten */}
       <div className={`grid gap-3 ${avgDuration ? "grid-cols-3" : "grid-cols-2"}`}>
