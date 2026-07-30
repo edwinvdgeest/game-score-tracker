@@ -1,32 +1,7 @@
 "use client";
 
 import type { HypeFact } from "@/lib/schemas";
-
-const TONE_STYLES: Record<
-  HypeFact["tone"],
-  { color: string; bg: string; border: string }
-> = {
-  coral: {
-    color: "var(--color-coral)",
-    bg: "color-mix(in srgb, var(--color-coral) 10%, var(--card))",
-    border: "color-mix(in srgb, var(--color-coral) 35%, transparent)",
-  },
-  mint: {
-    color: "var(--color-mint)",
-    bg: "color-mix(in srgb, var(--color-mint) 12%, var(--card))",
-    border: "color-mix(in srgb, var(--color-mint) 40%, transparent)",
-  },
-  lavender: {
-    color: "var(--color-lavender)",
-    bg: "color-mix(in srgb, var(--color-lavender) 12%, var(--card))",
-    border: "color-mix(in srgb, var(--color-lavender) 40%, transparent)",
-  },
-  yellow: {
-    color: "#b89000",
-    bg: "color-mix(in srgb, var(--color-warm-yellow) 30%, var(--card))",
-    border: "color-mix(in srgb, var(--color-warm-yellow) 60%, transparent)",
-  },
-};
+import { PILL_TONE_STYLES as TONE_STYLES } from "@/components/ui/tone-styles";
 
 interface HypeCardProps {
   facts: HypeFact[];

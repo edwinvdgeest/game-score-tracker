@@ -5,15 +5,23 @@ import type { Game } from "@/lib/schemas";
 
 interface GameSuggesterProps {
   initialCandidates: Game[];
+  /**
+   * Aantal spelers dat al bekend was, bijvoorbeeld omdat je vanaf de homepage komt waar dat
+   * al aangevinkt stond. Dan hoef je het hier niet opnieuw te kiezen.
+   */
+  initialPlayerCount?: number | null;
 }
 
-export function GameSuggester({ initialCandidates }: GameSuggesterProps) {
+export function GameSuggester({
+  initialCandidates,
+  initialPlayerCount = null,
+}: GameSuggesterProps) {
   const [spinning, setSpinning] = useState(false);
   const [candidates, setCandidates] = useState<Game[]>(initialCandidates);
   const [result, setResult] = useState<Game | null>(null);
   const [displayGame, setDisplayGame] = useState<Game | null>(null);
   const [phase, setPhase] = useState<"idle" | "spinning" | "done">("idle");
-  const [playerCount, setPlayerCount] = useState<number | null>(null);
+  const [playerCount, setPlayerCount] = useState<number | null>(initialPlayerCount);
 
   const spin = useCallback(async () => {
     if (spinning) return;

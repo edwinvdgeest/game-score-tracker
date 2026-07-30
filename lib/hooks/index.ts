@@ -14,3 +14,5 @@ export {
   finishMarathon,
 } from "./useMarathon";
 export { useIsHydrated, useMinuteClock } from "./useClock";
+export { useMemoryToday } from "./useMemoryToday";
+export { useSpotlightPrefs } from "./useSpotlightPrefs";

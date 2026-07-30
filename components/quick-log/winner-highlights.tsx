@@ -1,32 +1,7 @@
 "use client";
 
 import type { HypeFact } from "@/lib/schemas";
-
-const TONE_STYLES: Record<
-  HypeFact["tone"],
-  { color: string; bg: string; border: string }
-> = {
-  coral: {
-    color: "var(--color-coral)",
-    bg: "color-mix(in srgb, var(--color-coral) 12%, var(--card))",
-    border: "color-mix(in srgb, var(--color-coral) 45%, transparent)",
-  },
-  mint: {
-    color: "var(--color-mint)",
-    bg: "color-mix(in srgb, var(--color-mint) 14%, var(--card))",
-    border: "color-mix(in srgb, var(--color-mint) 50%, transparent)",
-  },
-  lavender: {
-    color: "var(--color-lavender)",
-    bg: "color-mix(in srgb, var(--color-lavender) 14%, var(--card))",
-    border: "color-mix(in srgb, var(--color-lavender) 50%, transparent)",
-  },
-  yellow: {
-    color: "#b89000",
-    bg: "color-mix(in srgb, var(--color-warm-yellow) 35%, var(--card))",
-    border: "color-mix(in srgb, var(--color-warm-yellow) 70%, transparent)",
-  },
-};
+import { CARD_TONE_STYLES as TONE_STYLES } from "@/components/ui/tone-styles";
 
 interface WinnerHighlightsProps {
   highlights: HypeFact[];
