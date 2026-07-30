@@ -108,9 +108,36 @@ npm run lint
 ```
 
 Getest worden de badge-logica (`lib/achievements.ts`), de statistiekberekeningen
-(`lib/stats.ts`) en de datum- en reeks-helpers (`lib/utils.ts`). Query-functies die
-Supabase aanroepen worden niet getest: die bevatten alleen kolomselectie, de berekeningen
-zijn er bewust uitgetild.
+(`lib/stats.ts`), de spotlight-kaarten (`lib/spotlight.ts`), de deeltekst (`lib/share.ts`)
+en de datum- en reeks-helpers (`lib/utils.ts`). Query-functies die Supabase aanroepen worden
+niet getest: die bevatten alleen kolomselectie, de berekeningen zijn er bewust uitgetild.
+
+De homepage-componenten worden wel getest, omdat daar gedrag in zit en geen opmaak:
+`components/home/spotlight-carousel.test.tsx` klikt de carrousel door en
+`components/home/home-client.test.tsx` controleert dat "Nog eens?" het spel in het formulier
+zet. Beide draaien in jsdom via `// @vitest-environment jsdom` bovenaan het bestand.
+
+## De spotlight op de homepage
+
+Boven het logformulier staat een carrousel met wisselende kaarten. Welke kaarten er zijn
+hangt af van de data; `lib/spotlight.ts` bouwt ze en `pickSpotlightCards` kiest er maximaal
+zes per bezoek, met een startpunt dat per uur opschuift. Zo zie je niet elke dag hetzelfde.
+
+| Kaart | Wanneer |
+|-------|---------|
+| 🕰️ N jaar geleden speelden jullie… | Potjes van rond deze kalenderdag, 1 t/m 3 jaar terug — één kaart per jaar met treffers |
+| 🎲 Jullie laatste potjes | Altijd, zodra er gespeeld is |
+| ⚔️ Tijd voor revanche | Als de achterstaande speler bij een spel structureel verliest (≥3 onderlinge potjes) |
+| 🔥 Wie is er warm? / 📊 De stand tot nu toe | Reeks van 2+ winsten, anders de gewone stand |
+| 🏆 Uit het recordboek | Hoogste score, grootste verschil, langste potje |
+| 📅 Jullie speelritme | Laatste potje, speeldagen op rij, deze maand vs. vorige maand |
+| 🧹 Staat al even stil | Spellen die ≥60 dagen (of nooit) gespeeld zijn |
+| 🎁 Jullie jaar in cijfers | Alleen in december en januari; linkt naar `/wrapped/<jaar>` |
+
+Elke uitslag- of spelregel heeft een "🎮 Nog eens?"-knop: die zet het spel meteen in het
+formulier en springt naar "Wie begon?", zonder paginaherlaad. Zodra er een spel gekozen is
+verdwijnt de carrousel en komt er een kaart met de laatste uitslagen van dát spel, de stand,
+het record en de gemiddelde speelduur (`/api/games/[id]/recap`).
 
 ## Deployen naar Vercel
 
@@ -146,7 +173,7 @@ een client-side navigatie.
 
 | Scherm | Pad | Beschrijving |
 |--------|-----|-------------|
-| Quick Log | `/` | Spel kiezen → beginner → scores → confetti 🎉. Met notitieveld en een "een jaar geleden"-kaartje |
+| Quick Log | `/` | Spel kiezen → beginner → scores → confetti 🎉. Met notitieveld, deelbare uitslag en de spotlight-carrousel (zie hieronder) |
 | Scorebord | `/dashboard` | Leaderboard, streaks, grafieken, gastenblok, seizoensbanner |
 | Marathon | `/marathon` | Live scorebord voor een spellenavond, met eindstand |
 | Spellen | `/games` | Lijst beheren, favorieten, archiveren, nieuw spel toevoegen |

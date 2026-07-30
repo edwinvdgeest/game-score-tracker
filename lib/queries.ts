@@ -14,6 +14,16 @@ import {
   type HeadToHead,
 } from "@/lib/duel";
 import {
+  buildSpotlightCards,
+  computeGameRecap,
+  pickSpotlightCards,
+  type GameRecap,
+  type SpotlightCard,
+  type SpotlightGame,
+  type SpotlightPlayer,
+  type SpotlightSession,
+} from "@/lib/spotlight";
+import {
   championOf,
   computeStandings,
   isSameSeason,
@@ -1064,63 +1074,137 @@ export async function getHeadToHead(
   };
 }
 
-// ─── Herinneringen ────────────────────────────────────────────────────────────
+// ─── Spotlight (de wisselende kaart op de homepage) ───────────────────────────
 
-export type Memory = {
-  /** Hoeveel jaar geleden dit potje gespeeld werd. */
-  yearsAgo: number;
-  sessions: SessionDetail[];
+/** Sessie met deelnemers, winnaar én speelduur — precies wat lib/spotlight.ts nodig heeft. */
+const SPOTLIGHT_SESSION_SELECT =
+  "id, played_at, winner_id, notes, duration_minutes, game:games(id, name, emoji, lowest_score_wins), winner:players!winner_id(id, name, emoji), scores:session_players(player:players(id, name, emoji), score)";
+
+type RawSpotlightSession = {
+  id: string;
+  played_at: string;
+  winner_id: string | null;
+  notes: string | null;
+  duration_minutes: number | null;
+  game: { id: string; name: string; emoji: string; lowest_score_wins: boolean | null };
+  winner: SpotlightPlayer | null;
+  scores: Array<{ player: SpotlightPlayer; score: number | null }>;
 };
 
-/** Hoeveel dagen rond dezelfde kalenderdag we meenemen, zodat de kaart niet vaak leeg is. */
-const MEMORY_WINDOW_DAYS = 3;
-/** Hoeveel jaar terug we zoeken voordat we opgeven. */
-const MEMORY_MAX_YEARS_BACK = 3;
+function toSpotlightSession(row: RawSpotlightSession): SpotlightSession {
+  return {
+    id: row.id,
+    played_at: row.played_at,
+    winner_id: row.winner_id,
+    winner: row.winner,
+    notes: row.notes,
+    duration_minutes: row.duration_minutes,
+    game: {
+      id: row.game.id,
+      name: row.game.name,
+      emoji: row.game.emoji,
+      lowest_score_wins: row.game.lowest_score_wins ?? false,
+    },
+    scores: row.scores,
+  };
+}
 
 /**
- * Potjes van rond deze dag in een eerder jaar.
+ * De kaarten voor de homepage.
  *
- * Zoekt eerst één jaar terug, dan twee, dan drie, en stopt bij de eerste treffer. Geen
- * treffer betekent null — de aanroeper rendert dan niets, want de app toont geen
- * placeholder-data.
+ * Één volledige sessie-fetch, net als /history doet, en daarna rekent lib/spotlight.ts alles
+ * uit — dat houdt de logica testbaar en de queries dom. Wordt de historie ooit zo lang dat
+ * dit merkbaar wordt, dan is de uitweg om per kaartsoort een eigen venster-query te doen.
  *
- * `reference` bestaat om dit testbaar en handmatig controleerbaar te maken op een dag
- * waarvan je weet dat er data is. De server draait in UTC en het huishouden in
- * Europe/Amsterdam; met een venster van ±3 dagen maakt dat niets uit.
+ * `reference` bestaat om dit testbaar en handmatig controleerbaar te maken op een dag waarvan
+ * je weet dat er data is. De server draait in UTC en het huishouden in Europe/Amsterdam; met
+ * een venster van ±MEMORY_WINDOW_DAYS dagen maakt dat niets uit.
  */
-export async function getMemories(reference?: Date): Promise<Memory | null> {
+export async function getSpotlight(reference?: Date): Promise<SpotlightCard[]> {
   const supabase = createServerClient();
-  const base = reference ?? new Date();
+  const today = reference ?? new Date();
 
-  for (let yearsAgo = 1; yearsAgo <= MEMORY_MAX_YEARS_BACK; yearsAgo++) {
-    const target = new Date(base);
-    target.setFullYear(target.getFullYear() - yearsAgo);
-
-    const from = new Date(target);
-    from.setDate(from.getDate() - MEMORY_WINDOW_DAYS);
-    from.setHours(0, 0, 0, 0);
-
-    const to = new Date(target);
-    to.setDate(to.getDate() + MEMORY_WINDOW_DAYS);
-    to.setHours(23, 59, 59, 999);
-
-    const { data, error } = await supabase
+  const [sessionsResult, gamesResult, playersResult] = await Promise.all([
+    supabase
       .from("game_sessions")
-      .select(
-        "id, played_at, day_of_week, winner_id, starter_id, notes, game:games(*), winner:players!winner_id(*), scores:session_players(player:players(*), score)"
-      )
-      .gte("played_at", from.toISOString())
-      .lte("played_at", to.toISOString())
-      .order("played_at", { ascending: false })
-      .limit(3);
+      .select(SPOTLIGHT_SESSION_SELECT)
+      .order("played_at", { ascending: false }),
+    supabase
+      .from("games")
+      .select("id, name, emoji, lowest_score_wins")
+      .eq("is_archived", false)
+      .order("name"),
+    supabase.from("players").select("id, name, emoji").eq("is_active", true),
+  ]);
 
-    if (error) throw new Error(`Failed to fetch memories: ${error.message}`);
+  if (sessionsResult.error)
+    throw new Error(`Failed to fetch spotlight: ${sessionsResult.error.message}`);
+  if (gamesResult.error) throw new Error(gamesResult.error.message);
+  if (playersResult.error) throw new Error(playersResult.error.message);
 
-    const sessions = (data ?? []) as unknown as SessionDetail[];
-    if (sessions.length > 0) return { yearsAgo, sessions };
-  }
+  const sessions = ((sessionsResult.data ?? []) as unknown as RawSpotlightSession[]).map(
+    toSpotlightSession
+  );
+  const games = ((gamesResult.data ?? []) as unknown as Array<{
+    id: string;
+    name: string;
+    emoji: string;
+    lowest_score_wins: boolean | null;
+  }>).map((game) => ({ ...game, lowest_score_wins: game.lowest_score_wins ?? false }));
+  const players = (playersResult.data ?? []) as unknown as SpotlightPlayer[];
 
-  return null;
+  const cards = buildSpotlightCards({ sessions, games, players, today });
+
+  // De seed schuift per uur op: binnen een sessie blijft de kaartenset staan, maar wie de
+  // app morgen weer opent krijgt een andere mix.
+  const seed = Math.floor(today.getTime() / 3_600_000);
+  return pickSpotlightCards(cards, seed);
+}
+
+/**
+ * Alles wat de kaart bij een gekozen spel laat zien: de laatste uitslagen, de stand voor dit
+ * spel, het record en de gemiddelde speelduur. Null als het spel niet bestaat.
+ */
+export async function getGameRecap(gameId: string): Promise<GameRecap | null> {
+  const supabase = createServerClient();
+
+  const [gameResult, sessionsResult, playersResult] = await Promise.all([
+    supabase
+      .from("games")
+      .select("id, name, emoji, lowest_score_wins")
+      .eq("id", gameId)
+      .single(),
+    supabase
+      .from("game_sessions")
+      .select(SPOTLIGHT_SESSION_SELECT)
+      .eq("game_id", gameId)
+      .order("played_at", { ascending: false }),
+    supabase.from("players").select("id, name, emoji").eq("is_active", true),
+  ]);
+
+  if (gameResult.error || !gameResult.data) return null;
+  if (sessionsResult.error) throw new Error(sessionsResult.error.message);
+  if (playersResult.error) throw new Error(playersResult.error.message);
+
+  const raw = gameResult.data as unknown as {
+    id: string;
+    name: string;
+    emoji: string;
+    lowest_score_wins: boolean | null;
+  };
+  const game: SpotlightGame = {
+    id: raw.id,
+    name: raw.name,
+    emoji: raw.emoji,
+    lowest_score_wins: raw.lowest_score_wins ?? false,
+  };
+
+  const sessions = ((sessionsResult.data ?? []) as unknown as RawSpotlightSession[]).map(
+    toSpotlightSession
+  );
+  const players = (playersResult.data ?? []) as unknown as SpotlightPlayer[];
+
+  return computeGameRecap(sessions, game, players);
 }
 
 /** Update an existing session */

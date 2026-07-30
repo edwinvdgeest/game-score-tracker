@@ -20,6 +20,7 @@ import { FinalScores } from "./final-scores";
 import { cn } from "@/lib/utils";
 import { computeWinner, parseScoreEntries } from "@/lib/stats";
 import { jsonFetcher } from "@/lib/hooks/fetcher";
+import { formatShareText, shareResult } from "@/lib/share";
 import { toast } from "sonner";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
 
@@ -31,13 +32,22 @@ const AUTO_RESET_SECONDS = 25;
 // Dynamically load confetti to avoid SSR issues
 const ReactConfetti = dynamic(() => import("react-confetti"), { ssr: false });
 
+type Step = "game" | "starter" | "scores" | "done";
+
+/** Wat de homepage van het formulier moet weten om de juiste kaart te tonen. */
+export type SessionFormState = { selectedGame: Game | null; step: Step };
+
 interface SessionFormProps {
   games: Game[];
   players: Player[];
   preselectedGameId?: string;
+  /**
+   * Een spel dat buiten het formulier is aangetikt ("Nog eens?"). De nonce loopt op bij elke
+   * tik, zodat hetzelfde spel twee keer achter elkaar kiezen ook werkt.
+   */
+  gamePick?: { game: Game; nonce: number } | null;
+  onStateChange?: (state: SessionFormState) => void;
 }
-
-type Step = "game" | "starter" | "scores" | "done";
 
 const PROGRESS_STEP: Record<Exclude<Step, "done">, number> = {
   game: 0,
@@ -52,7 +62,13 @@ function vibrate(pattern: number | number[]) {
   }
 }
 
-export function SessionForm({ games, players, preselectedGameId }: SessionFormProps) {
+export function SessionForm({
+  games,
+  players,
+  preselectedGameId,
+  gamePick,
+  onStateChange,
+}: SessionFormProps) {
   const preselectedGame = preselectedGameId ? (games.find((g) => g.id === preselectedGameId) ?? null) : null;
   const [step, setStep] = useState<Step>(preselectedGame ? "starter" : "game");
   const [selectedGame, setSelectedGame] = useState<Game | null>(preselectedGame);
@@ -210,6 +226,30 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
   /** Speler wil de stats langer bekijken: aftimer stoppen */
   const pauseAutoReset = useCallback(() => setSecondsLeft(null), []);
 
+  /**
+   * Een spel dat buiten het formulier is aangetikt overnemen en meteen doorspringen naar
+   * "Wie begon?" — de tik kwam van iemand die dit spel nú wil spelen.
+   */
+  const pickNonce = gamePick?.nonce;
+  useEffect(() => {
+    if (!gamePick) return;
+    setSelectedGame(gamePick.game);
+    setStep("starter");
+    setSelectedStarter(null);
+    setScores({});
+    setWinner(undefined);
+    setSavedSessionId(null);
+    setSecondsLeft(null);
+    vibrate([30]);
+    // Alleen op de nonce reageren: dezelfde tik mag niet bij elke render opnieuw landen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickNonce]);
+
+  /** De homepage laat hierop de juiste kaart boven het formulier zien. */
+  useEffect(() => {
+    onStateChange?.({ selectedGame, step });
+  }, [selectedGame, step, onStateChange]);
+
   const startNextGame = useCallback(() => {
     setShowConfetti(false);
     resetForm();
@@ -286,6 +326,30 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
     },
     [selectedGame, selectedStarter, activePlayers, marathon, duration, note]
   );
+
+  /** Uitslag delen: share sheet op de telefoon, klembord op de desktop. */
+  const handleShare = useCallback(async () => {
+    if (!selectedGame) return;
+    const parsed = parseScoreEntries(
+      activePlayers.map((p) => p.id),
+      scores
+    );
+    const text = formatShareText({
+      game: { name: selectedGame.name, emoji: selectedGame.emoji },
+      participants: activePlayers.map((player) => ({
+        name: player.name,
+        emoji: player.emoji,
+        score: parsed.find((entry) => entry.player_id === player.id)?.score ?? null,
+      })),
+      winner: winner ? { name: winner.name, emoji: winner.emoji } : null,
+      playedAt: new Date().toISOString(),
+      lowestScoreWins: selectedGame.lowest_score_wins ?? false,
+    });
+
+    const outcome = await shareResult(text);
+    if (outcome === "copied") toast.success("📋 Uitslag gekopieerd");
+    if (outcome === "failed") toast.error("Delen lukte niet op dit apparaat.");
+  }, [selectedGame, activePlayers, scores, winner]);
 
   const handleScoreChange = useCallback((playerId: string, value: string) => {
     setScores((prev) => ({ ...prev, [playerId]: value }));
@@ -389,13 +453,23 @@ export function SessionForm({ games, players, preselectedGameId }: SessionFormPr
           >
             🎮 {marathon ? "Volgende spel" : "Nog een potje"}
           </button>
-          <Link
-            href={marathon ? "/marathon" : "/dashboard"}
-            className="flex items-center justify-center w-full py-3 rounded-2xl font-bold border-2 text-sm"
-            style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
-          >
-            {marathon ? "🏁 Naar scorebord" : "📊 Naar statistieken"}
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href={marathon ? "/marathon" : "/dashboard"}
+              className="flex flex-1 items-center justify-center py-3 rounded-2xl font-bold border-2 text-sm"
+              style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+            >
+              {marathon ? "🏁 Naar scorebord" : "📊 Naar statistieken"}
+            </Link>
+            <button
+              onClick={() => void handleShare()}
+              className="flex items-center justify-center px-4 py-3 rounded-2xl font-bold border-2 text-sm cursor-pointer transition-colors hover:border-[var(--color-coral)] hover:text-[var(--color-coral)]"
+              style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+              aria-label="Uitslag delen"
+            >
+              📤 Delen
+            </button>
+          </div>
         </div>
 
         {/* Aftimer — tik om de stats te laten staan */}

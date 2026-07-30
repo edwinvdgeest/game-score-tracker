@@ -1,8 +1,6 @@
-import { getGamesSortedByRecent, getPlayers, getMemories } from "@/lib/queries";
-import { SessionForm } from "@/components/quick-log/session-form";
+import { getGamesSortedByRecent, getPlayers, getSpotlight } from "@/lib/queries";
 import { SetupBanner } from "@/components/setup-banner";
-import { MarathonStartButton } from "@/components/marathon/marathon-start-button";
-import { MemoryCard } from "@/components/memories/memory-card";
+import { HomeClient } from "@/components/home/home-client";
 
 export const dynamic = "force-dynamic";
 
@@ -15,22 +13,20 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   let data: [
     Awaited<ReturnType<typeof getGamesSortedByRecent>>,
     Awaited<ReturnType<typeof getPlayers>>,
-    Awaited<ReturnType<typeof getMemories>>,
+    Awaited<ReturnType<typeof getSpotlight>>,
     { game?: string },
   ];
   try {
     data = await Promise.all([
       getGamesSortedByRecent(),
       getPlayers(),
-      getMemories(),
+      getSpotlight(),
       searchParams,
     ]);
   } catch {
     return <SetupBanner />;
   }
-  const [games, players, memory, resolvedParams] = data;
-
-  const preselectedGameId = resolvedParams.game;
+  const [games, players, spotlight, resolvedParams] = data;
 
   return (
     <div className="space-y-6">
@@ -45,10 +41,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           Wie wint er vandaag?
         </p>
       </div>
-      {/* Alleen renderen als er echt een herinnering is — geen leeg kader. */}
-      {memory && <MemoryCard memory={memory} />}
-      <MarathonStartButton />
-      <SessionForm games={games} players={players} preselectedGameId={preselectedGameId} />
+      {/* De kaart boven het formulier hangt af van wat er in het formulier gebeurt, dus
+          zit hij samen met het formulier in één client-component. */}
+      <HomeClient
+        games={games}
+        players={players}
+        spotlight={spotlight}
+        preselectedGameId={resolvedParams.game}
+      />
     </div>
   );
 }
