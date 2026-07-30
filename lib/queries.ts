@@ -16,7 +16,7 @@ import {
 import {
   buildSpotlightCards,
   computeGameRecap,
-  pickSpotlightCards,
+  MEMORY_MAX_YEARS_BACK,
   type GameRecap,
   type SpotlightCard,
   type SpotlightGame,
@@ -1120,7 +1120,14 @@ function toSpotlightSession(row: RawSpotlightSession): SpotlightSession {
  * je weet dat er data is. De server draait in UTC en het huishouden in Europe/Amsterdam; met
  * een venster van ±MEMORY_WINDOW_DAYS dagen maakt dat niets uit.
  */
-export async function getSpotlight(reference?: Date): Promise<SpotlightCard[]> {
+export type SpotlightPayload = {
+  /** De hele pool; de client kiest, want alleen die kent de voorkeuren en de bezetting. */
+  cards: SpotlightCard[];
+  /** Schuift per uur op, zodat de mix varieert zonder dat de server state bijhoudt. */
+  seed: number;
+};
+
+export async function getSpotlight(reference?: Date): Promise<SpotlightPayload> {
   const supabase = createServerClient();
   const today = reference ?? new Date();
 
@@ -1130,8 +1137,10 @@ export async function getSpotlight(reference?: Date): Promise<SpotlightCard[]> {
       .select(SPOTLIGHT_SESSION_SELECT)
       .order("played_at", { ascending: false }),
     supabase
+      // min/max spelers erbij: de "staat al even stil"-kaart mag geen spel tippen dat met de
+      // huidige bezetting niet te spelen is.
       .from("games")
-      .select("id, name, emoji, lowest_score_wins")
+      .select("id, name, emoji, lowest_score_wins, min_players, max_players")
       .eq("is_archived", false)
       .order("name"),
     supabase.from("players").select("id, name, emoji").eq("is_active", true),
@@ -1150,15 +1159,70 @@ export async function getSpotlight(reference?: Date): Promise<SpotlightCard[]> {
     name: string;
     emoji: string;
     lowest_score_wins: boolean | null;
-  }>).map((game) => ({ ...game, lowest_score_wins: game.lowest_score_wins ?? false }));
+    min_players: number | null;
+    max_players: number | null;
+  }>).map((game) => ({
+    ...game,
+    lowest_score_wins: game.lowest_score_wins ?? false,
+    min_players: game.min_players ?? undefined,
+    max_players: game.max_players ?? undefined,
+  }));
   const players = (playersResult.data ?? []) as unknown as SpotlightPlayer[];
 
-  const cards = buildSpotlightCards({ sessions, games, players, today });
+  return {
+    cards: buildSpotlightCards({ sessions, games, players, today }),
+    // De seed schuift per uur op: binnen een sessie blijft de mix staan, maar wie de app
+    // morgen weer opent ziet andere kaarten.
+    seed: Math.floor(today.getTime() / 3_600_000),
+  };
+}
 
-  // De seed schuift per uur op: binnen een sessie blijft de kaartenset staan, maar wie de
-  // app morgen weer opent krijgt een andere mix.
-  const seed = Math.floor(today.getTime() / 3_600_000);
-  return pickSpotlightCards(cards, seed);
+export type MemoryToday = {
+  /** Hoeveel jaar geleden, van de dichtstbijzijnde treffer. */
+  yearsAgo: number;
+  /** Hoeveel potjes er op precies deze dag gespeeld zijn. */
+  count: number;
+};
+
+/**
+ * Is er een terugblik van precies vandaag?
+ *
+ * Bewust los van getSpotlight(): dit wordt vanuit de navigatiebalk op elke pagina opgevraagd en
+ * mag niet de hele historie ophalen. Drie kleine dagvensters (1, 2 en 3 jaar terug) volstaan.
+ * Precies dezelfde kalenderdag, niet het ±3-daagse venster van de kaart zelf — een stip die
+ * een week blijft staan is geen nieuws meer.
+ */
+export async function getMemoryToday(reference?: Date): Promise<MemoryToday | null> {
+  const supabase = createServerClient();
+  const base = reference ?? new Date();
+
+  const years = Array.from({ length: MEMORY_MAX_YEARS_BACK }, (_, index) => index + 1);
+
+  const results = await Promise.all(
+    years.map((yearsAgo) => {
+      const target = new Date(base);
+      target.setFullYear(target.getFullYear() - yearsAgo);
+
+      const from = new Date(target);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(target);
+      to.setHours(23, 59, 59, 999);
+
+      return supabase
+        .from("game_sessions")
+        .select("id")
+        .gte("played_at", from.toISOString())
+        .lte("played_at", to.toISOString());
+    })
+  );
+
+  for (const [index, result] of results.entries()) {
+    if (result.error) throw new Error(result.error.message);
+    const count = (result.data ?? []).length;
+    if (count > 0) return { yearsAgo: (years[index] as number), count };
+  }
+
+  return null;
 }
 
 /**

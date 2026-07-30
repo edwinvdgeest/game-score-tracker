@@ -23,6 +23,9 @@ export type SpotlightGame = {
   name: string;
   emoji: string;
   lowest_score_wins: boolean;
+  /** Spelersgrenzen; alleen de spellenlijst levert die mee, een sessie heeft ze niet nodig. */
+  min_players?: number;
+  max_players?: number;
 };
 
 export type SpotlightPlayer = { id: string; name: string; emoji: string };
@@ -47,11 +50,31 @@ export type SpotlightEntry = {
   note: string | null;
   /** Gezet als deze regel een "Nog eens?"-knop verdient. */
   replayGame: { id: string; name: string; emoji: string } | null;
+  /**
+   * Voor hoeveel spelers dit spel bedoeld is. Alleen gezet als de regel een spel tipt, zodat
+   * de homepage een tip kan weglaten die niet bij de huidige bezetting past.
+   */
+  playerRange?: { min: number; max: number };
 };
+
+/**
+ * Kaartsoort. De `id` is instantie-specifiek (`memory-2y`, `wrapped-2026`), maar voorkeuren
+ * ("minder van dit") gaan per soort — anders zou je morgen dezelfde soort weer wegtikken.
+ */
+export type SpotlightKind =
+  | "memory"
+  | "recent"
+  | "revanche"
+  | "streak"
+  | "records"
+  | "rhythm"
+  | "dust"
+  | "wrapped";
 
 export type SpotlightCard = {
   /** Stabiele sleutel, ook gebruikt als React-key en in pickSpotlightCards. */
   id: string;
+  kind: SpotlightKind;
   emoji: string;
   title: string;
   tone: FactTone;
@@ -59,6 +82,8 @@ export type SpotlightCard = {
   footnote?: string;
   /** Doorklikken naar een andere pagina, bv. het jaaroverzicht. */
   cta?: { href: string; label: string };
+  /** Terugblik van precies vandaag, N jaar terug. Voert de stip in de navigatiebalk. */
+  exactDay?: boolean;
 };
 
 // ─── Instellingen ─────────────────────────────────────────────────────────────
@@ -135,6 +160,17 @@ function factEntry(
   };
 }
 
+/**
+ * Spelersgrenzen als los stukje voor een kaartregel, maar alleen als ze ergens op slaan:
+ * ontbrekende of nul-waarden mogen nooit een tip laten verdwijnen.
+ */
+function playerRangeOf(game: SpotlightGame): { playerRange?: { min: number; max: number } } {
+  const { min_players: min, max_players: max } = game;
+  if (typeof min !== "number" || typeof max !== "number") return {};
+  if (min <= 0 || max <= 0 || max < min) return {};
+  return { playerRange: { min, max } };
+}
+
 /** "vandaag", "gisteren", "3 dagen geleden", "2 maanden geleden". */
 function agoLabel(days: number): string {
   if (days <= 0) return "vandaag";
@@ -145,7 +181,10 @@ function agoLabel(days: number): string {
   return `${Math.floor(months / 12)} jaar geleden`;
 }
 
-function yearsAgoLabel(yearsAgo: number): string {
+function yearsAgoLabel(yearsAgo: number, exactDay: boolean): string {
+  if (exactDay) {
+    return yearsAgo === 1 ? "Vandaag een jaar geleden" : `Vandaag ${yearsAgo} jaar geleden`;
+  }
   if (yearsAgo === 1) return "Een jaar geleden";
   return `${yearsAgo} jaar geleden`;
 }
@@ -168,26 +207,33 @@ export function buildMemoryCards(
     const target = new Date(today);
     target.setFullYear(target.getFullYear() - yearsAgo);
 
-    const hits = sessions
-      .filter(
-        (session) =>
-          Math.abs(
-            differenceInCalendarDays(new Date(session.played_at), target)
-          ) <= MEMORY_WINDOW_DAYS
-      )
+    const inWindow = sessions.filter(
+      (session) =>
+        Math.abs(differenceInCalendarDays(new Date(session.played_at), target)) <=
+        MEMORY_WINDOW_DAYS
+    );
+    if (inWindow.length === 0) continue;
+
+    // Precies deze kalenderdag is het leukste toeval; dat verdient een eigen kop en het is
+    // waar de stip in de navigatiebalk op afgaat.
+    const exactDay = inWindow.some(
+      (session) => differenceInCalendarDays(new Date(session.played_at), target) === 0
+    );
+
+    const hits = inWindow
       .sort(
         (a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime()
       )
       .slice(0, 3);
 
-    if (hits.length === 0) continue;
-
     cards.push({
       id: `memory-${yearsAgo}y`,
+      kind: "memory",
       emoji: "🕰️",
-      title: `${yearsAgoLabel(yearsAgo)} speelden jullie…`,
+      title: `${yearsAgoLabel(yearsAgo, exactDay)} speelden jullie…`,
       tone: "lavender",
       entries: hits.map(sessionEntry),
+      ...(exactDay ? { exactDay: true } : {}),
     });
   }
 
@@ -202,6 +248,7 @@ export function buildRecentCard(sessions: SpotlightSession[]): SpotlightCard | n
 
   return {
     id: "recent",
+    kind: "recent",
     emoji: "🎲",
     title: "Jullie laatste potjes",
     tone: "mint",
@@ -247,6 +294,7 @@ export function buildStreakCard(
 
   return {
     id: "streak",
+    kind: "streak",
     emoji: hot ? "🔥" : "📊",
     title: hot ? "Wie is er warm?" : "De stand tot nu toe",
     tone: "coral",
@@ -347,6 +395,7 @@ export function buildRecordCard(sessions: SpotlightSession[]): SpotlightCard | n
 
   return {
     id: "records",
+    kind: "records",
     emoji: "🏆",
     title: "Uit het recordboek",
     tone: "yellow",
@@ -391,19 +440,21 @@ export function buildDustCard(
 
   return {
     id: "dust",
+    kind: "dust",
     emoji: "🧹",
     title: "Staat al even stil",
     tone: "mint",
-    entries: candidates.map((row) =>
-      factEntry(
+    entries: candidates.map((row) => ({
+      ...factEntry(
         row.game.emoji,
         row.game.name,
         Number.isFinite(row.daysSince)
           ? `Voor het laatst ${agoLabel(row.daysSince)}`
           : "Nog nooit gespeeld",
         row.game
-      )
-    ),
+      ),
+      ...playerRangeOf(row.game),
+    })),
     footnote: "Tijd om er weer eens een potje van te doen?",
   };
 }
@@ -487,6 +538,7 @@ export function buildRhythmCard(
 
   return {
     id: "rhythm",
+    kind: "rhythm",
     emoji: "📅",
     title: "Jullie speelritme",
     tone: "coral",
@@ -607,6 +659,7 @@ export function buildRevancheCard(
 
   return {
     id: "revanche",
+    kind: "revanche",
     emoji: "⚔️",
     title: "Tijd voor revanche",
     tone: "lavender",
@@ -663,6 +716,7 @@ export function buildWrappedTeaserCard(
 
   return {
     id: `wrapped-${year}`,
+    kind: "wrapped",
     emoji: "🎁",
     title: "Jullie jaar in cijfers",
     tone: "yellow",
@@ -704,19 +758,37 @@ export function buildSpotlightCards(input: {
  * De selectie voor dit bezoek: maximaal MAX_SPOTLIGHT_CARDS kaarten, met een startpunt dat
  * met `seed` meeschuift. Twee keer de app openen geeft dus een andere mix, terwijl een
  * terugblik altijd meedoet zolang die bestaat — dat is het kaartje waar het om begon.
+ *
+ * `demoted` zijn de soorten waarvan de speler "minder van dit" heeft aangetikt. Die zakken naar
+ * het eind van de pool en verdwijnen dus in de praktijk, maar niet gegarandeerd: is er weinig
+ * anders, dan zie je ze liever dan een lege carrousel. Een weggetikte terugblik verliest ook
+ * zijn voorrangsplek — anders zou wegtikken niets doen.
  */
 export function pickSpotlightCards(
   cards: SpotlightCard[],
-  seed: number
+  seed: number,
+  demoted: readonly SpotlightKind[] = []
 ): SpotlightCard[] {
-  if (cards.length <= MAX_SPOTLIGHT_CARDS) return cards;
+  const isDemoted = (card: SpotlightCard) => demoted.includes(card.kind);
+  const ordered =
+    demoted.length > 0
+      ? [...cards.filter((card) => !isDemoted(card)), ...cards.filter(isDemoted)]
+      : cards;
 
-  const offset = ((Math.trunc(seed) % cards.length) + cards.length) % cards.length;
-  const rotated = [...cards.slice(offset), ...cards.slice(0, offset)];
+  if (ordered.length <= MAX_SPOTLIGHT_CARDS) return ordered;
+
+  // Alleen over de niet-weggetikte kop roteren, zodat de rotatie geen weggetikte soort
+  // naar voren draait.
+  const rotatable = ordered.filter((card) => !isDemoted(card));
+  const pool = rotatable.length >= MAX_SPOTLIGHT_CARDS ? rotatable : ordered;
+
+  const offset = ((Math.trunc(seed) % pool.length) + pool.length) % pool.length;
+  const rotated = [...pool.slice(offset), ...pool.slice(0, offset)];
   const picked = rotated.slice(0, MAX_SPOTLIGHT_CARDS);
 
-  if (!picked.some((card) => card.id.startsWith("memory-"))) {
-    const memory = rotated.find((card) => card.id.startsWith("memory-"));
+  const isMemory = (card: SpotlightCard) => card.kind === "memory" && !isDemoted(card);
+  if (!picked.some(isMemory)) {
+    const memory = rotated.find(isMemory);
     if (memory) {
       picked.pop();
       picked.unshift(memory);
@@ -724,6 +796,29 @@ export function pickSpotlightCards(
   }
 
   return picked;
+}
+
+/**
+ * Kaarten die een spel tippen dat niet bij de huidige bezetting past, hebben op dat moment
+ * niets te melden. Regels zonder spelersgrenzen blijven altijd staan, en een kaart die
+ * helemaal leeg raakt valt weg.
+ */
+export function filterCardsForPlayerCount(
+  cards: SpotlightCard[],
+  count: number
+): SpotlightCard[] {
+  if (!Number.isFinite(count) || count <= 0) return cards;
+
+  return cards
+    .map((card) => {
+      const entries = card.entries.filter(
+        (entry) =>
+          !entry.playerRange ||
+          (entry.playerRange.min <= count && count <= entry.playerRange.max)
+      );
+      return entries.length === card.entries.length ? card : { ...card, entries };
+    })
+    .filter((card) => card.entries.length > 0);
 }
 
 // ─── Kaart bij een gekozen spel ───────────────────────────────────────────────

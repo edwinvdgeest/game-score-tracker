@@ -108,14 +108,16 @@ npm run lint
 ```
 
 Getest worden de badge-logica (`lib/achievements.ts`), de statistiekberekeningen
-(`lib/stats.ts`), de spotlight-kaarten (`lib/spotlight.ts`), de deeltekst (`lib/share.ts`)
-en de datum- en reeks-helpers (`lib/utils.ts`). Query-functies die Supabase aanroepen worden
-niet getest: die bevatten alleen kolomselectie, de berekeningen zijn er bewust uitgetild.
+(`lib/stats.ts`), de spotlight-kaarten en -voorkeuren (`lib/spotlight.ts`,
+`lib/spotlight-prefs.ts`), de deeltekst (`lib/share.ts`) en de datum- en reeks-helpers
+(`lib/utils.ts`). Query-functies die Supabase aanroepen worden niet getest: die bevatten alleen
+kolomselectie, de berekeningen zijn er bewust uitgetild.
 
-De homepage-componenten worden wel getest, omdat daar gedrag in zit en geen opmaak:
-`components/home/spotlight-carousel.test.tsx` klikt de carrousel door en
-`components/home/home-client.test.tsx` controleert dat "Nog eens?" het spel in het formulier
-zet. Beide draaien in jsdom via `// @vitest-environment jsdom` bovenaan het bestand.
+Een paar componenten worden wel getest, omdat daar gedrag in zit en geen opmaak:
+`components/home/spotlight-carousel.test.tsx` (bladeren, "minder van dit", startkaart),
+`components/home/home-client.test.tsx` ("Nog eens?" zet het spel in het formulier) en
+`components/quick-log/game-grid.test.tsx` (het bezettingsfilter). Ze draaien in jsdom via
+`// @vitest-environment jsdom` bovenaan het bestand.
 
 ## De spotlight op de homepage
 
@@ -138,6 +140,22 @@ Elke uitslag- of spelregel heeft een "🎮 Nog eens?"-knop: die zet het spel met
 formulier en springt naar "Wie begon?", zonder paginaherlaad. Zodra er een spel gekozen is
 verdwijnt de carrousel en komt er een kaart met de laatste uitslagen van dát spel, de stand,
 het record en de gemiddelde speelduur (`/api/games/[id]/recap`).
+
+### Wat je zelf kunt bijsturen
+
+- **🙈 Minder** zet een kaartsoort dertig dagen achteraan. Dat staat in localStorage
+  (`spelscores:spotlight:v1`, zie `lib/spotlight-prefs.ts`), dus per apparaat — jij en Lisanne
+  mogen een andere mix. De melding heeft een "Ongedaan maken", en onder de stippen staat
+  "alles terug" zolang er iets weggezet is. Weggezette soorten verdwijnen niet gegarandeerd:
+  is er weinig anders, dan zie je ze liever dan een lege carrousel.
+- **Op deze dag.** Is er een potje van precies vandaag, N jaar terug, dan staat er een stip bij
+  het 🎮-tabblad (`/api/spotlight/today`) en opent de carrousel op die terugblik. Na een bezoek
+  aan de homepage is de stip weg tot morgen.
+- **Bezetting.** Het spelraster filtert op het aantal aangevinkte spelers, met een chip
+  "🙋 Past bij N spelers · X verborgen" die je met één tik uitzet. Zoeken gaat altijd door
+  alles heen, spellen zonder spelersgrenzen blijven staan, en als het filter alles zou wegvegen
+  blijft het raster volledig. De 🧹-kaart tipt geen spel dat met deze bezetting niet kan, en
+  "🎲 Wat zullen we spelen?" geeft het aantal mee aan `/suggest?players=N`.
 
 ## Deployen naar Vercel
 

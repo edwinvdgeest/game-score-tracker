@@ -10,6 +10,7 @@ import {
   buildStreakCard,
   buildWrappedTeaserCard,
   computeGameRecap,
+  filterCardsForPlayerCount,
   pickSpotlightCards,
   MAX_SPOTLIGHT_CARDS,
   type SpotlightCard,
@@ -81,6 +82,22 @@ describe("buildMemoryCards", () => {
       name: RUMMIKUB.name,
       emoji: RUMMIKUB.emoji,
     });
+  });
+
+  it("noemt een potje van precies vandaag apart en markeert het", () => {
+    const session = makeSessionFactory();
+    const cards = buildMemoryCards([session({ played_at: at(2024, 7, 30) })], TODAY);
+
+    expect(cards[0]?.title).toBe("Vandaag 2 jaar geleden speelden jullie…");
+    expect(cards[0]?.exactDay).toBe(true);
+  });
+
+  it("markeert een potje van een paar dagen ernaast niet als vandaag", () => {
+    const session = makeSessionFactory();
+    const cards = buildMemoryCards([session({ played_at: at(2024, 7, 28) })], TODAY);
+
+    expect(cards[0]?.title).toBe("2 jaar geleden speelden jullie…");
+    expect(cards[0]?.exactDay).toBeUndefined();
   });
 
   it("geeft niets terug zonder potjes", () => {
@@ -337,22 +354,23 @@ describe("buildSpotlightCards", () => {
 });
 
 describe("pickSpotlightCards", () => {
-  const card = (id: string): SpotlightCard => ({
+  const card = (id: string, kind: SpotlightCard["kind"] = "recent"): SpotlightCard => ({
     id,
+    kind,
     emoji: "🎲",
     title: id,
     tone: "mint",
     entries: [],
   });
   const pool = [
-    card("memory-1y"),
-    card("recent"),
-    card("revanche"),
-    card("streak"),
-    card("records"),
-    card("rhythm"),
-    card("dust"),
-    card("wrapped-2026"),
+    card("memory-1y", "memory"),
+    card("recent", "recent"),
+    card("revanche", "revanche"),
+    card("streak", "streak"),
+    card("records", "records"),
+    card("rhythm", "rhythm"),
+    card("dust", "dust"),
+    card("wrapped-2026", "wrapped"),
   ];
 
   it("laat een korte stapel ongemoeid", () => {
@@ -377,6 +395,104 @@ describe("pickSpotlightCards", () => {
       const ids = pickSpotlightCards(pool, seed).map((c) => c.id);
       expect(ids).toContain("memory-1y");
     }
+  });
+});
+
+describe("pickSpotlightCards met weggetikte soorten", () => {
+  const card = (id: string, kind: SpotlightCard["kind"]): SpotlightCard => ({
+    id,
+    kind,
+    emoji: "🎲",
+    title: id,
+    tone: "mint",
+    entries: [],
+  });
+
+  it("laat een weggetikte soort naar achteren zakken", () => {
+    const cards = [
+      card("memory-1y", "memory"),
+      card("dust", "dust"),
+      card("recent", "recent"),
+    ];
+    const ids = pickSpotlightCards(cards, 0, ["dust"]).map((c) => c.id);
+
+    expect(ids).toEqual(["memory-1y", "recent", "dust"]);
+  });
+
+  it("houdt weggetikte soorten uit de selectie zodra er genoeg andere zijn", () => {
+    const cards = [
+      card("memory-1y", "memory"),
+      card("recent", "recent"),
+      card("revanche", "revanche"),
+      card("streak", "streak"),
+      card("records", "records"),
+      card("rhythm", "rhythm"),
+      card("dust", "dust"),
+    ];
+    const ids = pickSpotlightCards(cards, 3, ["dust"]).map((c) => c.id);
+
+    expect(ids).toHaveLength(MAX_SPOTLIGHT_CARDS);
+    expect(ids).not.toContain("dust");
+  });
+
+  it("geeft een weggetikte terugblik geen voorrang meer", () => {
+    const cards = [
+      card("memory-1y", "memory"),
+      card("recent", "recent"),
+      card("revanche", "revanche"),
+      card("streak", "streak"),
+      card("records", "records"),
+      card("rhythm", "rhythm"),
+      card("dust", "dust"),
+    ];
+    const ids = pickSpotlightCards(cards, 1, ["memory"]).map((c) => c.id);
+
+    expect(ids).not.toContain("memory-1y");
+  });
+
+  it("toont een weggetikte soort liever dan een lege carrousel", () => {
+    const cards = [card("dust", "dust")];
+    expect(pickSpotlightCards(cards, 0, ["dust"]).map((c) => c.id)).toEqual(["dust"]);
+  });
+});
+
+describe("filterCardsForPlayerCount", () => {
+  const withRange = (min: number, max: number) => ({
+    emoji: "🎲",
+    title: `${min}-${max}`,
+    subtitle: "",
+    scores: [],
+    note: null,
+    replayGame: null,
+    playerRange: { min, max },
+  });
+
+  const dust: SpotlightCard = {
+    id: "dust",
+    kind: "dust",
+    emoji: "🧹",
+    title: "Staat al even stil",
+    tone: "mint",
+    entries: [withRange(2, 4), withRange(3, 6)],
+  };
+
+  it("laat tips weg die niet bij de bezetting passen", () => {
+    const [card] = filterCardsForPlayerCount([dust], 2);
+    expect(card?.entries.map((entry) => entry.title)).toEqual(["2-4"]);
+  });
+
+  it("laat de kaart vallen als er niets overblijft", () => {
+    expect(filterCardsForPlayerCount([dust], 8)).toEqual([]);
+  });
+
+  it("raakt regels zonder spelersgrenzen niet aan", () => {
+    const recent = buildRecentCard([makeSessionFactory()()]);
+    expect(recent).not.toBeNull();
+    expect(filterCardsForPlayerCount([recent as SpotlightCard], 5)).toEqual([recent]);
+  });
+
+  it("filtert niet zonder bekende bezetting", () => {
+    expect(filterCardsForPlayerCount([dust], 0)).toEqual([dust]);
   });
 });
 

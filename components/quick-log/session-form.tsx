@@ -35,7 +35,12 @@ const ReactConfetti = dynamic(() => import("react-confetti"), { ssr: false });
 type Step = "game" | "starter" | "scores" | "done";
 
 /** Wat de homepage van het formulier moet weten om de juiste kaart te tonen. */
-export type SessionFormState = { selectedGame: Game | null; step: Step };
+export type SessionFormState = {
+  selectedGame: Game | null;
+  step: Step;
+  /** Hoeveel spelers er nu aangevinkt staan; bepaalt welke spellen relevant zijn. */
+  activePlayerCount: number;
+};
 
 interface SessionFormProps {
   games: Game[];
@@ -247,8 +252,8 @@ export function SessionForm({
 
   /** De homepage laat hierop de juiste kaart boven het formulier zien. */
   useEffect(() => {
-    onStateChange?.({ selectedGame, step });
-  }, [selectedGame, step, onStateChange]);
+    onStateChange?.({ selectedGame, step, activePlayerCount: activePlayers.length });
+  }, [selectedGame, step, activePlayers.length, onStateChange]);
 
   const startNextGame = useCallback(() => {
     setShowConfetti(false);
@@ -655,10 +660,11 @@ export function SessionForm({
             games={games}
             selectedGameId={selectedGame?.id ?? null}
             onSelect={handleGameSelect}
+            playerCount={activePlayers.length}
           />
 
           <Link
-            href="/suggest"
+            href={`/suggest?players=${activePlayers.length}`}
             className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border-2 font-extrabold text-sm transition-colors hover:border-[var(--color-coral)] hover:text-[var(--color-coral)]"
             style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
           >

@@ -30,6 +30,7 @@ const PLAYERS = [
 const SPOTLIGHT: SpotlightCard[] = [
   {
     id: "memory-1y",
+    kind: "memory",
     emoji: "🕰️",
     title: "Een jaar geleden speelden jullie…",
     tone: "lavender",
@@ -96,7 +97,7 @@ afterEach(() => {
 
 describe("HomeClient", () => {
   it("wisselt van terugblik naar de uitslagen van het gekozen spel", async () => {
-    render(<HomeClient games={[GAME]} players={PLAYERS} spotlight={SPOTLIGHT} />);
+    render(<HomeClient games={[GAME]} players={PLAYERS} spotlight={{ cards: SPOTLIGHT, seed: 0 }} />);
 
     expect(screen.getByText("Een jaar geleden speelden jullie…")).toBeDefined();
 

@@ -6,8 +6,10 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { DarkModeToggle } from "./dark-mode-toggle";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
+import { useMemoryToday } from "@/lib/hooks/useMemoryToday";
+import { useSpotlightPrefs } from "@/lib/hooks/useSpotlightPrefs";
 
-// PRIMARY_NAV is static; marathon badge is added dynamically in the component.
+// PRIMARY_NAV is static; de stippen (marathon, terugblik van vandaag) komen uit hasBadge().
 //
 // INVARIANT: PRIMARY_NAV + de "Meer"-knop = exact 5 tabs op mobiel. Voeg hier nooit een
 // vijfde item toe — de onderste balk loopt dan over en taps komen niet meer aan (dat is
@@ -33,7 +35,18 @@ const ALL_NAV = [...PRIMARY_NAV, ...MORE_NAV];
 export function Nav() {
   const pathname = usePathname();
   const { marathon } = useActiveMarathon();
+  const { memory } = useMemoryToday();
+  const { visitedHomeToday } = useSpotlightPrefs();
   const [meerOpen, setMeerOpen] = useState(false);
+
+  /**
+   * Welke tabs een stip verdienen: een lopende marathon, en een terugblik van precies vandaag
+   * die je nog niet gezien hebt. Op de homepage zelf hoeft er niets te knipperen, en na een
+   * bezoek verdwijnt de stip tot morgen.
+   */
+  const showMemoryDot = memory !== null && !visitedHomeToday && pathname !== "/";
+  const hasBadge = (href: string) =>
+    (href === "/marathon" && marathon != null) || (href === "/" && showMemoryDot);
 
   // Sluit het menu met Escape (buiten-tappen gaat via de overlay hieronder —
   // een document-level mousedown-listener is onbetrouwbaar op touch)
@@ -81,7 +94,7 @@ export function Nav() {
               item.href === "/marathon"
                 ? pathname === "/marathon" || pathname.startsWith("/marathon/")
                 : pathname === item.href;
-            const showBadge = item.href === "/marathon" && marathon != null;
+            const showBadge = hasBadge(item.href);
             return (
               <Link
                 key={item.href}
@@ -186,7 +199,7 @@ export function Nav() {
               item.href === "/marathon"
                 ? pathname === "/marathon" || pathname.startsWith("/marathon/")
                 : pathname === item.href;
-            const showBadge = item.href === "/marathon" && marathon != null;
+            const showBadge = hasBadge(item.href);
             return (
               <Link
                 key={item.href}

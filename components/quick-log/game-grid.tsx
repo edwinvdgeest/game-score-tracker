@@ -10,16 +10,39 @@ interface GameGridProps {
   games: Game[];
   selectedGameId: string | null;
   onSelect: (game: Game) => void;
+  /** Aantal spelers dat aangevinkt staat. 0 = geen bezettingsfilter. */
+  playerCount?: number;
 }
 
-export function GameGrid({ games, selectedGameId, onSelect }: GameGridProps) {
-  const [query, setQuery] = useState("");
+/** Past dit spel bij dit aantal spelers? Onbekende grenzen verbergen nooit iets. */
+function fitsPlayers(game: Game, count: number): boolean {
+  const { min_players: min, max_players: max } = game;
+  if (typeof min !== "number" || typeof max !== "number") return true;
+  if (min <= 0 || max <= 0 || max < min) return true;
+  return min <= count && count <= max;
+}
 
-  const filtered = query.trim()
+export function GameGrid({
+  games,
+  selectedGameId,
+  onSelect,
+  playerCount = 0,
+}: GameGridProps) {
+  const [query, setQuery] = useState("");
+  const [fitOnly, setFitOnly] = useState(true);
+
+  // Zoeken gaat vóór het bezettingsfilter: typ je een naam, dan zoek je in alles.
+  const searched = query.trim()
     ? games.filter((g) =>
         g.name.toLowerCase().includes(query.toLowerCase().trim())
       )
     : games;
+
+  const fitting = playerCount > 0 ? searched.filter((g) => fitsPlayers(g, playerCount)) : searched;
+  const hiddenCount = searched.length - fitting.length;
+  // Het filter mag nooit alles wegvegen — dan liever het volle raster.
+  const filterActive = fitOnly && !query.trim() && hiddenCount > 0 && fitting.length > 0;
+  const filtered = filterActive ? fitting : searched;
 
   return (
     <div>
@@ -52,6 +75,31 @@ export function GameGrid({ games, selectedGameId, onSelect }: GameGridProps) {
           </button>
         )}
       </div>
+
+      {/* Bezettingsfilter. Alleen te zien als het iets doet, en altijd met één tik uit te
+          zetten — een spel dat je zoekt mag nooit onvindbaar zijn. */}
+      {playerCount > 0 && !query.trim() && hiddenCount > 0 && fitting.length > 0 && (
+        <button
+          onClick={() => setFitOnly((value) => !value)}
+          className="mb-3 inline-flex items-center gap-1.5 px-3 min-h-11 rounded-full border-2 text-xs font-bold cursor-pointer transition-colors"
+          style={
+            filterActive
+              ? {
+                  borderColor: "var(--color-coral)",
+                  color: "var(--color-coral)",
+                  backgroundColor:
+                    "color-mix(in srgb, var(--color-coral) 10%, transparent)",
+                }
+              : { borderColor: "var(--border)", color: "var(--muted-foreground)" }
+          }
+          aria-pressed={filterActive}
+        >
+          🙋 Past bij {playerCount} {playerCount === 1 ? "speler" : "spelers"}
+          <span style={{ color: "var(--muted-foreground)" }}>
+            · {filterActive ? `${hiddenCount} verborgen` : "alles zichtbaar"}
+          </span>
+        </button>
+      )}
 
       <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
         {filtered.map((game) => (

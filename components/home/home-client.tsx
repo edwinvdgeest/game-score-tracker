@@ -1,17 +1,18 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Game, Player } from "@/lib/schemas";
-import type { SpotlightCard } from "@/lib/spotlight";
+import type { SpotlightPayload } from "@/lib/queries";
 import { MarathonStartButton } from "@/components/marathon/marathon-start-button";
 import { SessionForm, type SessionFormState } from "@/components/quick-log/session-form";
+import { useSpotlightPrefs } from "@/lib/hooks/useSpotlightPrefs";
 import { SpotlightCarousel } from "./spotlight-carousel";
 import { GameRecapCard } from "./game-recap-card";
 
 interface HomeClientProps {
   games: Game[];
   players: Player[];
-  spotlight: SpotlightCard[];
+  spotlight: SpotlightPayload;
   preselectedGameId?: string;
 }
 
@@ -36,9 +37,16 @@ export function HomeClient({
   const [formState, setFormState] = useState<SessionFormState>({
     selectedGame: preselectedGame,
     step: preselectedGame ? "starter" : "game",
+    activePlayerCount: 0,
   });
   const [pick, setPick] = useState<{ game: Game; nonce: number } | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  const { noteHomeVisit } = useSpotlightPrefs();
+
+  // Je bent er geweest: de stip bij 🎮 mag weer tot morgen weg.
+  useEffect(() => {
+    noteHomeVisit();
+  }, [noteHomeVisit]);
 
   const handleReplay = useCallback(
     (gameId: string) => {
@@ -54,15 +62,20 @@ export function HomeClient({
     [games]
   );
 
-  const { selectedGame, step } = formState;
+  const { selectedGame, step, activePlayerCount } = formState;
 
   return (
     <>
       {/* De carrousel blijft in de DOM staan (alleen verborgen) zodat je na een potje weer
           op dezelfde kaart terugkomt in plaats van bij de eerste. */}
-      {spotlight.length > 0 && (
+      {spotlight.cards.length > 0 && (
         <div hidden={step === "done" || selectedGame !== null}>
-          <SpotlightCarousel cards={spotlight} onReplay={handleReplay} />
+          <SpotlightCarousel
+            cards={spotlight.cards}
+            seed={spotlight.seed}
+            playerCount={activePlayerCount}
+            onReplay={handleReplay}
+          />
         </div>
       )}
 
