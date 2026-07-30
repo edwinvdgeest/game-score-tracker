@@ -119,6 +119,29 @@ zijn er bewust uitgetild.
 3. Stel de environment variables in (zelfde als `.env.local`, zonder `SUPABASE_SERVICE_ROLE_KEY`)
 4. Deploy!
 
+### Wat er na een deploy gebeurt
+
+De app is een PWA met een service worker (`public/sw.js`), en die bepaalt wat je te zien
+krijgt. De regels:
+
+| Wat | Strategie |
+|-----|-----------|
+| Pagina's en RSC-payloads | Netwerk eerst; de cache is alleen offline-terugval |
+| `/_next/static/*` | Cache eerst — die URLs bevatten een content-hash |
+| `/_next/image` | Cache eerst, in een eigen cache die versiebumps overleeft |
+| `/api/*` | Netwerk eerst |
+
+Omdat elke pagina `force-dynamic` is, zit de data ín de server-rendered HTML. Zou die
+HTML uit de cache komen, dan zie je de scores van de vorige deploy — dat was tot en met
+`SW_VERSION = "v3"` het geval. Verander je de strategie of de offline-terugval, bump dan
+`SW_VERSION` in `public/sw.js`; de activate-handler gooit de caches van oudere versies weg.
+
+De geïnstalleerde webapp controleert bij elke keer terugkeren naar de app (en verder elk
+uur) of er een nieuwe service worker klaarstaat, en herlaadt zichzelf zodra die overneemt.
+Daarnaast staat `deploymentId` aan in `next.config.ts`: ziet de client dat de server
+inmiddels op een nieuwere deploy draait, dan doet hij een volledige herlaad in plaats van
+een client-side navigatie.
+
 ## Schermen
 
 | Scherm | Pad | Beschrijving |
