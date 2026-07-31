@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { updateGame, updateGameMetadata } from "@/lib/queries";
 import {
   createGameSchema,
+  updateGameImageSchema,
   updateGameTextSchema,
   type GameMetadataPatch,
 } from "@/lib/schemas";
@@ -34,7 +35,8 @@ const patchGameSchema = z
     is_favorite: z.boolean().optional(),
     is_archived: z.boolean().optional(),
   })
-  .extend(updateGameTextSchema.shape);
+  .extend(updateGameTextSchema.shape)
+  .extend(updateGameImageSchema.shape);
 
 export async function PATCH(
   request: NextRequest,
@@ -61,6 +63,13 @@ export async function PATCH(
     if ("description" in parsed.data || "rules_summary" in parsed.data) {
       patch.text_source = "handmatig";
       patch.text_locked = true;
+    }
+
+    // Een nieuwe doosfoto wist de thumbnail. In de kleine weergaves wint
+    // thumbnail_url van image_url, dus zonder dit zou een oude thumbnail blijven
+    // staan en lijkt het alsof de geplakte URL niet is opgeslagen.
+    if ("image_url" in parsed.data) {
+      patch.thumbnail_url = null;
     }
 
     const game = await updateGameMetadata(id, patch);

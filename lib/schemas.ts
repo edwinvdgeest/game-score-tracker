@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isDisplayableImageUrl } from "@/lib/game-images";
 
 // Enums
 export const gameCategorySchema = z.enum([
@@ -156,6 +157,21 @@ export const updateGameTextSchema = z.object({
   parent_game_id: z.string().uuid().nullable().optional(),
 });
 export type UpdateGameTextInput = z.infer<typeof updateGameTextSchema>;
+
+/**
+ * Handmatig geplakte doosfoto (PATCH /api/games/[id]).
+ *
+ * Los van updateGameTextSchema: een foto zet het tekstslot niet aan, en andersom.
+ */
+export const updateGameImageSchema = z.object({
+  image_url: z
+    .string()
+    .max(2000)
+    .refine(isDisplayableImageUrl, "Gebruik een volledige https-URL naar een afbeelding")
+    .nullable()
+    .optional(),
+});
+export type UpdateGameImageInput = z.infer<typeof updateGameImageSchema>;
 
 /**
  * Interne schrijfvorm voor metadata. Bewust een TypeScript-type en geen Zod-schema:

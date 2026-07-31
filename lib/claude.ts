@@ -6,6 +6,11 @@
  * niets en geeft null terug — geen fout, geen log-spam. De SDK wordt dan ook niet
  * geladen (dynamische import achter de env-check), zodat een build zonder sleutel
  * niets extra's meesleept.
+ *
+ * LET OP: op dit moment heeft deze module geen aanroeper. Hij hing aan de
+ * enrich-route, die met de BoardGameGeek-koppeling is verwijderd. Hij blijft staan
+ * omdat hij niet van BGG afhangt: zet een sleutel plus een kleine tekst-only route
+ * neer en hij werkt weer. De bestaande spellen hebben hun tekst uit migratie 011.
  */
 
 import { z } from "zod";

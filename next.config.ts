@@ -10,9 +10,10 @@ const nextConfig: NextConfig = {
   // deze optie een no-op.
   deploymentId: process.env.VERCEL_DEPLOYMENT_ID,
   images: {
-    // Doosfoto's komen van BoardGameGeek. Staat een host hier niet in, dan geeft
-    // de image-optimizer een 400 op /_next/image in plaats van netjes te falen.
-    // Deze lijst MOET gelijk blijven aan ALLOWED_IMAGE_HOSTS in lib/game-metadata.ts.
+    // Alleen de hosts die door de image-optimizer mogen. Staat een host hier niet in,
+    // dan geeft /_next/image een 400 — daarom rendert GameCover een zelf geplakte URL
+    // van een onbekende host met `unoptimized`, buiten de optimizer om.
+    // Deze lijst MOET gelijk blijven aan OPTIMIZED_IMAGE_HOSTS in lib/game-images.ts.
     remotePatterns: [
       { protocol: "https", hostname: "cf.geekdo-images.com", pathname: "/**" },
       { protocol: "https", hostname: "images.boardgamegeek.com", pathname: "/**" },
