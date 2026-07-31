@@ -111,7 +111,10 @@ self.addEventListener("fetch", (event) => {
   // request, dus zo'n respons viel hier vroeger in een afgewezen promise.
   if (request.method !== "GET") return;
 
-  // Andere origins (analytics, externe scripts) laten we met rust.
+  // Andere origins (analytics, externe scripts) laten we met rust. Ook een handmatig
+  // geplakte doosfoto van een host buiten remotePatterns valt hieronder: die laadt
+  // ongeoptimaliseerd en cross-origin, dus de respons is opaque (status 0) en cache.put
+  // zou 'm toch weigeren. De HTTP-cache van de browser doet daar het werk.
   if (url.origin !== self.location.origin) return;
 
   if (url.pathname.startsWith("/api/")) {

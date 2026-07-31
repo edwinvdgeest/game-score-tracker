@@ -23,6 +23,7 @@ Score tracker voor Edwin & Lisanne (en soms Minou). Score loggen in 2 taps, dire
 | 10 | `009_backfill_session_players.sql` | Ontbrekende deelnemersrijen aanvullen |
 | 11 | `010_game_metadata.sql` | Doosfoto's, omschrijving, speluitleg en variant-koppeling |
 | 12 | `011_seed_dutch_game_text.sql` | Nederlandse teksten voor de bestaande spellen |
+| 13 | `012_clear_bgg_sync_state.sql` | Restanten van de verwijderde BGG-koppeling opruimen |
 
 > Let op: er zijn twee bestanden met prefix `002`. Draai `002_seed_data.sql` vóór
 > `002_nullable_winner_cleanup.sql`.
@@ -49,8 +50,8 @@ Vul in `.env.local`:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — te vinden op dezelfde pagina
 - `SUPABASE_SERVICE_ROLE_KEY` — alleen nodig voor de scripts (API keys sectie)
 
-Optioneel, zie de toelichting in `.env.example`: `ANTHROPIC_API_KEY`, `BGG_BASE_URL`
-en `ENRICH_TOKEN`. Zonder die drie draait alles gewoon.
+Optioneel, zie de toelichting in `.env.example`: `ANTHROPIC_API_KEY`. Zonder die
+sleutel draait alles gewoon.
 
 ### 3. Installeren en starten
 
@@ -73,27 +74,22 @@ Verwachte CSV-kolommen: `Datum, Game, Winnaar, Beginner, Score Edwin, Score Lisa
 
 Het script slaat dubbele rijen automatisch over op basis van datum + spel.
 
-## Spel-metadata ophalen
+## Doosfoto toevoegen
 
-Haalt bij BoardGameGeek de doosfoto, het jaartal, de speelduur en de rating op voor
-alle spellen die dat nog niet hebben:
+Open een spel → **Bewerken ✏️** → plak een URL bij **🖼️ Doosfoto**. Het voorbeeld
+verschijnt meteen; opslaan zet de foto op de spelpagina, in de spellenlijst en in het
+quick-log grid. Leeg laten betekent: de emoji, precies zoals eerst.
 
-```bash
-npx tsx scripts/backfill-game-metadata.ts
-```
+De makkelijkste bron is BoardGameGeek: open daar het spel in je browser en kopieer het
+afbeeldingsadres (`https://cf.geekdo-images.com/...`). Elke andere https-URL werkt ook.
 
-Opties: `--force` (ook al opgehaalde spellen), `--only="<naam>"`, `--limit=N`,
-`--dry-run`, `--no-claude`.
+Een spel dat via **Variant van** aan een hoofdspel hangt, gebruikt automatisch diens
+doosfoto en tekst. Eén URL bij Qwixx dekt dus meteen alle Qwixx-scorebladen.
 
-Het script gaat bewust langzaam — BoardGameGeek houdt een streng verzoekenlimiet aan,
-dus alles loopt na elkaar met een pauze van 2,5 seconde per verzoek. Reken op zo'n twee
-minuten voor de hele lijst. Varianten (de Qwixx-scorebladen, de Keer op Keer-niveaus)
-nemen het BGG-id van hun hoofdspel over en kosten geen extra zoekopdracht.
-
-Aan het eind toont het script welke spellen geen match hadden. Nederlandse titels staan
-op BoardGameGeek vaak onder hun oorspronkelijke naam; zet zo'n vertaling in
-`BGG_NAME_ALIASES` in `lib/bgg-match.ts`, of koppel het spel in de app met de knop
-"Verkeerd spel?" op de spelpagina.
+> Er was hier eerder een automatische koppeling met de BoardGameGeek XML API. Die is
+> verwijderd: BGG eist sinds 2 juli 2025 registratie en een Bearer-token, dus elke
+> aanroep gaf 401. De Nederlandse teksten uit migratie 011 en de variant-overerving
+> staan daar los van en werken gewoon.
 
 ## Tests
 

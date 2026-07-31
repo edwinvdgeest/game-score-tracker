@@ -173,9 +173,8 @@ export async function deleteOrDeactivatePlayer(id: string): Promise<void> {
  */
 const GAME_LIST_COLUMNS =
   "id, name, emoji, category, min_players, max_players, difficulty, created_at, " +
-  "is_favorite, is_archived, lowest_score_wins, bgg_id, image_url, thumbnail_url, " +
-  "year_published, bgg_rating, playing_time_minutes, variant_note, parent_game_id, " +
-  "text_source, text_locked, bgg_synced_at";
+  "is_favorite, is_archived, lowest_score_wins, image_url, thumbnail_url, " +
+  "variant_note, parent_game_id, text_source, text_locked";
 
 /** Hoofdspel-velden die een variant kan erven, als embedded select. */
 const PARENT_EMBED =
@@ -407,9 +406,9 @@ export async function updateGame(
 }
 
 /**
- * Schrijft metadata weg. Bewust een aparte functie met een eigen type naast
- * updateGame: zo kunnen het door-de-gebruiker-ingevulde pad en het verrijkingspad
- * elkaars velden niet overschrijven.
+ * Schrijft metadata weg (doosfoto, tekst, variant-koppeling). Bewust een aparte
+ * functie met een eigen type naast updateGame: het bewerkformulier doet een volledige
+ * PUT met updateGame, en die mag deze velden niet aanraken.
  */
 export async function updateGameMetadata(
   id: string,
@@ -425,21 +424,6 @@ export async function updateGameMetadata(
   if (error) throw new Error(`Failed to update game metadata: ${error.message}`);
   if (!data) throw new Error("No game returned after metadata update");
   return data as Game;
-}
-
-/** Spellen die nog verrijkt moeten worden; hoofdspellen eerst. */
-export async function getGamesNeedingMetadata(force = false): Promise<Game[]> {
-  const supabase = createServerClient();
-  const { data, error } = await supabase
-    .from("games")
-    .select("*")
-    // Hoofdspellen vóór varianten: een variant erft het bgg_id van zijn parent,
-    // dus die moet als eerste een match hebben.
-    .order("parent_game_id", { ascending: true, nullsFirst: true })
-    .order("name");
-  if (error) throw new Error(`Failed to fetch games: ${error.message}`);
-  const games = (data ?? []) as Game[];
-  return force ? games : games.filter((g) => !g.bgg_synced_at);
 }
 
 export type GameDetailStats = {

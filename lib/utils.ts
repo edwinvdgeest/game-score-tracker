@@ -19,6 +19,29 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Haalt de Nederlandse foutmelding uit een mislukte API-respons.
+ *
+ * De routes geven bij een fout `{ error: "..." }` terug. Formulieren toonden dat niet
+ * en zeiden altijd "Er ging iets mis", waardoor een dubbele spelnaam of een geweigerde
+ * insert niet van elkaar te onderscheiden was.
+ */
+export async function apiErrorMessage(response: Response): Promise<string> {
+  try {
+    const body: unknown = await response.json();
+    if (
+      body &&
+      typeof body === "object" &&
+      typeof (body as { error?: unknown }).error === "string"
+    ) {
+      return (body as { error: string }).error;
+    }
+  } catch {
+    // Geen JSON in de respons — val terug op de algemene tekst.
+  }
+  return "Er ging iets mis. Probeer opnieuw.";
+}
+
 /** Format a date string for display in Dutch */
 export function formatDate(dateString: string): string {
   return format(new Date(dateString), "d MMMM yyyy", { locale: nl });

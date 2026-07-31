@@ -2,23 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { bggGamePageUrl } from "@/lib/bgg";
 import { resolveInheritedMetadata } from "@/lib/game-metadata";
-import { MetadataRefresh } from "@/components/games/metadata-refresh";
 import type { Game, ParentGameRef } from "@/lib/schemas";
-
-const CHIP_CLASS = "text-xs font-bold px-2 py-0.5 rounded-full";
-const CHIP_STYLE = {
-  backgroundColor: "var(--color-warm-gray)",
-  color: "var(--muted-foreground)",
-} as const;
 
 interface GameInfoProps {
   game: Game & { parent?: ParentGameRef | null };
 }
 
 /**
- * Omschrijving, speluitleg en de BGG-feiten.
+ * Omschrijving, speluitleg en de variant-koppeling.
  *
  * De speluitleg staat standaard dichtgeklapt: het is het langste veld en je leest
  * het één keer. Zo blijft het visuele zwaartepunt van de pagina op de statistieken
@@ -31,44 +23,17 @@ export function GameInfo({ game }: GameInfoProps) {
   const parent = game.parent ?? null;
   const { description, rulesSummary } = resolveInheritedMetadata(game, parent);
 
-  const hasFacts = Boolean(game.year_published || game.playing_time_minutes || game.bgg_id);
   const hasText = Boolean(description || rulesSummary || game.variant_note);
 
-  // Niets te tonen én niets op te halen: laat de pagina zoals hij was.
-  if (!hasFacts && !hasText) {
-    return <EmptyState game={game} />;
+  // Niets te tonen: wijs naar het bewerkformulier in plaats van een leeg kaartje.
+  if (!hasText) {
+    return <EmptyState />;
   }
 
   const longDescription = (description?.length ?? 0) > 200;
 
   return (
     <div className="bg-[var(--card)] rounded-3xl p-4 border space-y-3">
-      {hasFacts && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {game.year_published && (
-            <span className={CHIP_CLASS} style={CHIP_STYLE}>
-              📅 {game.year_published}
-            </span>
-          )}
-          {game.playing_time_minutes && (
-            <span className={CHIP_CLASS} style={CHIP_STYLE}>
-              ⏱️ ~{game.playing_time_minutes} min
-            </span>
-          )}
-          {game.bgg_id && (
-            <a
-              href={bggGamePageUrl(game.bgg_id)}
-              target="_blank"
-              rel="noreferrer"
-              className={`${CHIP_CLASS} hover:underline`}
-              style={CHIP_STYLE}
-            >
-              {game.bgg_rating ? `⭐ ${game.bgg_rating.toFixed(1)} op BGG` : "🔗 Bekijk op BGG"}
-            </a>
-          )}
-        </div>
-      )}
-
       {parent && (
         <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
           Variant van{" "}
@@ -122,36 +87,25 @@ export function GameInfo({ game }: GameInfoProps) {
           )}
         </div>
       )}
-
-      <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
-        <MetadataRefresh game={game} />
-        {game.bgg_sync_error && (
-          <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-            ⚠️ {game.bgg_sync_error}
-          </span>
-        )}
-      </div>
     </div>
   );
 }
 
 /**
- * Voor spellen zonder enige metadata. Bewust zichtbaar in plaats van stilte: dit
- * zijn de spellen waar alleen de gebruiker zelf iets zinnigs over kan schrijven.
+ * Voor spellen zonder enige tekst. Bewust zichtbaar in plaats van stilte: dit zijn
+ * de spellen waar alleen de gebruiker zelf iets zinnigs over kan schrijven.
  */
-function EmptyState({ game }: GameInfoProps) {
+function EmptyState() {
   return (
     <div
-      className="rounded-3xl p-4 flex items-center justify-between gap-3 flex-wrap"
+      className="rounded-3xl p-4"
       style={{ backgroundColor: "var(--color-warm-gray)" }}
     >
-      <div>
-        <div className="font-extrabold text-sm">✍️ Nog geen uitleg voor dit spel</div>
-        <div className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-          Haal de gegevens op bij BoardGameGeek of schrijf de uitleg zelf via Bewerken.
-        </div>
+      <div className="font-extrabold text-sm">✍️ Nog geen uitleg voor dit spel</div>
+      <div className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+        Schrijf de omschrijving en speluitleg zelf via Bewerken ✏️ — daar zet je ook een
+        doosfoto neer.
       </div>
-      <MetadataRefresh game={game} />
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { isAllowedImageHost } from "@/lib/game-images";
+import { canOptimizeImage, isDisplayableImageUrl } from "@/lib/game-images";
 import type { Game, ParentGameRef } from "@/lib/schemas";
 
 type GameCoverSize = "sm" | "md" | "lg";
@@ -48,12 +48,16 @@ export function GameCover({ game, size = "sm", className, priority }: GameCoverP
     : game.parent?.thumbnail_url ?? game.parent?.image_url;
 
   const src = own ?? inherited ?? null;
-  const usable = !failed && isAllowedImageHost(src);
+  const usable = !failed && isDisplayableImageUrl(src);
 
   if (usable && src) {
     return (
       <Image
         src={src}
+        // Een zelf geplakte URL kan van elke host komen; die staat niet in
+        // remotePatterns en zou een 400 uit de optimizer geven. unoptimized slaat de
+        // loader over, dus de host-controle draait niet en het plaatje laadt gewoon.
+        unoptimized={!canOptimizeImage(src)}
         // Decoratief: de spelnaam staat op elk oppervlak direct ernaast, dus een
         // alt-tekst zou schermlezers de naam twee keer laten voorlezen.
         alt=""

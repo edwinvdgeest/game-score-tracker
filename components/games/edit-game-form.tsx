@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { isDisplayableImageUrl } from "@/lib/game-images";
+import { apiErrorMessage } from "@/lib/utils";
 import type { Game, GameCategory } from "@/lib/schemas";
 
 const categories: Array<{ value: GameCategory; label: string }> = [
@@ -36,6 +38,7 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
   const [lowestScoreWins, setLowestScoreWins] = useState(game.lowest_score_wins ?? false);
   const [minPlayers, setMinPlayers] = useState<string>(String(game.min_players ?? 2));
   const [maxPlayers, setMaxPlayers] = useState<string>(String(game.max_players ?? 4));
+  const [imageUrl, setImageUrl] = useState(game.image_url ?? "");
   const [description, setDescription] = useState(game.description ?? "");
   const [rulesSummary, setRulesSummary] = useState(game.rules_summary ?? "");
   const [variantNote, setVariantNote] = useState(game.variant_note ?? "");
@@ -52,9 +55,12 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
       .catch(() => setOtherGames([]));
   }, [textOpen, otherGames.length, game.id]);
 
+  const trimmedImageUrl = imageUrl.trim();
+  const imageUrlValid = trimmedImageUrl === "" || isDisplayableImageUrl(trimmedImageUrl);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || !imageUrlValid) return;
 
     setSaving(true);
     try {
@@ -72,35 +78,37 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
         }),
       });
 
-      if (!response.ok) throw new Error("Opslaan mislukt");
+      if (!response.ok) throw new Error(await apiErrorMessage(response));
 
-      // Tekst en variant-koppeling lopen via PATCH: die route zet text_locked,
-      // zodat het automatisch verrijken deze tekst daarna met rust laat.
-      const textChanged =
+      // Doosfoto, tekst en variant-koppeling lopen via PATCH: die route zet
+      // text_locked, zodat een handmatig aangepaste tekst daarna met rust gelaten wordt.
+      const metaChanged =
+        trimmedImageUrl !== (game.image_url ?? "") ||
         description !== (game.description ?? "") ||
         rulesSummary !== (game.rules_summary ?? "") ||
         variantNote !== (game.variant_note ?? "") ||
         parentGameId !== (game.parent_game_id ?? "");
 
-      if (textChanged) {
+      if (metaChanged) {
         const patchResponse = await fetch(`/api/games/${game.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            image_url: trimmedImageUrl || null,
             description: description.trim() || null,
             rules_summary: rulesSummary.trim() || null,
             variant_note: variantNote.trim() || null,
             parent_game_id: parentGameId || null,
           }),
         });
-        if (!patchResponse.ok) throw new Error("Opslaan van de tekst mislukt");
+        if (!patchResponse.ok) throw new Error(await apiErrorMessage(patchResponse));
       }
 
       toast.success(`${emoji} ${name} bijgewerkt! ✏️`);
       onClose();
       router.refresh();
-    } catch {
-      toast.error("Er ging iets mis. Probeer opnieuw.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Er ging iets mis. Probeer opnieuw.");
     } finally {
       setSaving(false);
     }
@@ -141,6 +149,54 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
           style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
           maxLength={4}
         />
+      </div>
+
+      {/* Doosfoto. Leeg = de emoji; een variant zonder eigen foto pakt die van het
+          hoofdspel. Zie GameCover. */}
+      <div className="space-y-1">
+        <label htmlFor="edit-game-image" className="text-sm font-bold block">
+          🖼️ Doosfoto (URL)
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            id="edit-game-image"
+            type="url"
+            inputMode="url"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="https://cf.geekdo-images.com/..."
+            aria-invalid={!imageUrlValid}
+            aria-describedby="edit-game-image-hint"
+            className="flex-1 min-w-0 px-3 py-2 rounded-xl border font-semibold text-sm outline-none focus:border-[var(--color-coral)]"
+            style={{
+              backgroundColor: "var(--muted)",
+              color: "var(--foreground)",
+              borderColor: imageUrlValid ? undefined : "var(--color-coral)",
+            }}
+          />
+          {/* Bewust een gewone img en geen next/image: dit is een tijdelijk voorbeeld
+              en hoeft niet langs de optimizer. */}
+          {imageUrlValid && trimmedImageUrl !== "" && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={trimmedImageUrl}
+              alt=""
+              width={40}
+              height={40}
+              className="rounded-xl object-cover flex-shrink-0"
+              style={{ width: 40, height: 40, backgroundColor: "var(--color-warm-gray)" }}
+            />
+          )}
+        </div>
+        <p
+          id="edit-game-image-hint"
+          className="text-xs font-semibold"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          {imageUrlValid
+            ? "Tip: open het spel op boardgamegeek.com en kopieer het afbeeldingsadres. Leeg laten = de emoji."
+            : "Dat is geen geldige https-URL."}
+        </p>
       </div>
 
       <div className="space-y-1">
@@ -353,7 +409,7 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
         </button>
         <button
           type="submit"
-          disabled={saving || !name.trim()}
+          disabled={saving || !name.trim() || !imageUrlValid}
           className="flex-1 py-2 rounded-xl text-white font-extrabold text-sm cursor-pointer disabled:opacity-50"
           style={{ backgroundColor: "var(--color-coral)" }}
         >
