@@ -56,6 +56,9 @@ export const gameSchema = z.object({
   is_favorite: z.boolean().optional().default(false),
   is_archived: z.boolean().optional().default(false),
   lowest_score_wins: z.boolean().optional().default(false),
+  // Maakt het uit wie begint? False = de wizard slaat "Wie begon?" over en de
+  // spelpagina laat het Beginnersvoordeel weg (migratie 013).
+  starter_matters: z.boolean().optional().default(true),
   // Metadata (migratie 010). Allemaal nullable: bestaande rijen hebben niets.
   bgg_id: z.number().int().nullable().optional(),
   image_url: z.string().nullable().optional(),
@@ -140,6 +143,9 @@ export const createGameSchema = z.object({
   max_players: z.number().int().min(1).max(20).optional().default(4),
   difficulty: z.number().int().min(1).max(5).nullable().optional(),
   lowest_score_wins: z.boolean().optional().default(false),
+  // Hoort hier en niet bij de metadata: dit is een speelregel die de gebruiker zelf
+  // instelt in het spelformulier, net als lowest_score_wins.
+  starter_matters: z.boolean().optional().default(true),
 });
 export type CreateGameInput = z.infer<typeof createGameSchema>;
 

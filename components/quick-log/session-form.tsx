@@ -23,6 +23,13 @@ import { jsonFetcher } from "@/lib/hooks/fetcher";
 import { formatShareText, shareResult } from "@/lib/share";
 import { toast } from "sonner";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
+import {
+  stepsFor,
+  nextStep,
+  prevStep,
+  stepAfterGame,
+  type Step,
+} from "@/lib/wizard-steps";
 
 const GUEST_EMOJIS = ["🎭", "🌟", "🎪", "🦋", "🌈", "🎯", "🎨", "🎸", "🌺", "🦊"];
 
@@ -32,7 +39,7 @@ const AUTO_RESET_SECONDS = 25;
 // Dynamically load confetti to avoid SSR issues
 const ReactConfetti = dynamic(() => import("react-confetti"), { ssr: false });
 
-type Step = "game" | "starter" | "scores" | "done";
+export type { Step };
 
 /** Wat de homepage van het formulier moet weten om de juiste kaart te tonen. */
 export type SessionFormState = {
@@ -54,12 +61,6 @@ interface SessionFormProps {
   onStateChange?: (state: SessionFormState) => void;
 }
 
-const PROGRESS_STEP: Record<Exclude<Step, "done">, number> = {
-  game: 0,
-  starter: 1,
-  scores: 2,
-};
-
 /** Trigg haptic feedback als de browser het ondersteunt */
 function vibrate(pattern: number | number[]) {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -75,7 +76,9 @@ export function SessionForm({
   onStateChange,
 }: SessionFormProps) {
   const preselectedGame = preselectedGameId ? (games.find((g) => g.id === preselectedGameId) ?? null) : null;
-  const [step, setStep] = useState<Step>(preselectedGame ? "starter" : "game");
+  const [step, setStep] = useState<Step>(
+    preselectedGame ? stepAfterGame(preselectedGame) : "game"
+  );
   const [selectedGame, setSelectedGame] = useState<Game | null>(preselectedGame);
   const [selectedStarter, setSelectedStarter] = useState<Player | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
@@ -186,9 +189,12 @@ export function SessionForm({
     });
   }, []);
 
+  /** De stappen van dít potje: bij een spel waar de beginner niet uitmaakt zijn het er twee. */
+  const steps = useMemo(() => stepsFor(selectedGame), [selectedGame]);
+
   const handleGameSelect = useCallback((game: Game) => {
     setSelectedGame(game);
-    setStep("starter");
+    setStep(stepAfterGame(game));
   }, []);
 
   const handleStarterSelect = useCallback((player: Player) => {
@@ -239,7 +245,7 @@ export function SessionForm({
   useEffect(() => {
     if (!gamePick) return;
     setSelectedGame(gamePick.game);
-    setStep("starter");
+    setStep(stepAfterGame(gamePick.game));
     setSelectedStarter(null);
     setScores({});
     setWinner(undefined);
@@ -361,14 +367,14 @@ export function SessionForm({
   }, []);
 
   const handleBack = useCallback(() => {
-    if (step === "starter") {
-      setStep("game");
-      setSelectedGame(null);
-    } else if (step === "scores") {
-      setStep("starter");
-      setSelectedStarter(null);
-    }
-  }, [step]);
+    const previous = prevStep(steps, step);
+    if (!previous) return;
+    // Een stap terug maakt ook ongedaan wat je op de stap die je verlaat gekozen had.
+    if (step === "starter") setSelectedGame(null);
+    if (step === "scores") setSelectedStarter(null);
+    if (previous === "game") setSelectedGame(null);
+    setStep(previous);
+  }, [steps, step]);
 
   // Swipe-to-navigate: swipe left = vooruit (als mogelijk), swipe right = terug
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -384,23 +390,21 @@ export function SessionForm({
       if (Math.abs(dx) < MIN_SWIPE) return;
 
       if (dx < 0) {
-        // Swipe left = vooruit — alleen als een game geselecteerd is
-        if (step === "game" && selectedGame) {
-          setSlideDir("left");
-          setTimeout(() => { setSlideDir(null); setStep("starter"); }, 200);
-        } else if (step === "starter") {
-          setSlideDir("left");
-          setTimeout(() => { setSlideDir(null); setStep("scores"); }, 200);
-        }
+        // Swipe left = vooruit — alleen als er een spel gekozen is, want zonder spel
+        // weten we de stappenlijst nog niet.
+        if (!selectedGame) return;
+        const forward = nextStep(steps, step);
+        if (!forward) return;
+        setSlideDir("left");
+        setTimeout(() => { setSlideDir(null); setStep(forward); }, 200);
       } else {
         // Swipe right = terug
-        if (step === "starter" || step === "scores") {
-          setSlideDir("right");
-          setTimeout(() => { setSlideDir(null); handleBack(); }, 200);
-        }
+        if (!prevStep(steps, step)) return;
+        setSlideDir("right");
+        setTimeout(() => { setSlideDir(null); handleBack(); }, 200);
       }
     },
-    [step, selectedGame, handleBack]
+    [steps, step, selectedGame, handleBack]
   );
 
   if (step === "done" && selectedGame) {
@@ -509,7 +513,7 @@ export function SessionForm({
     );
   }
 
-  const progressStep = step !== "done" ? PROGRESS_STEP[step] : 3;
+  const progressStep = step !== "done" ? steps.indexOf(step) : steps.length;
 
   return (
     <div
@@ -535,11 +539,11 @@ export function SessionForm({
         </div>
       )}
 
-      {/* Progress indicator — 3 steps */}
+      {/* Voortgang — zoveel segmenten als dit potje stappen heeft */}
       <div className="flex gap-2">
-        {[0, 1, 2].map((i) => (
+        {steps.map((name, i) => (
           <div
-            key={i}
+            key={name}
             className="h-1.5 flex-1 rounded-full transition-colors"
             style={{
               backgroundColor:
@@ -701,7 +705,11 @@ export function SessionForm({
               style={{ color: "var(--muted-foreground)" }}
             >
               ←{" "}
-              {selectedStarter
+              {/* Bij een spel zonder beginner-stap gaat terug naar de spelkeuze, dus
+                  noemt de knop het spel in plaats van de beginnersvraag. */}
+              {!steps.includes("starter")
+                ? `${selectedGame?.emoji} ${selectedGame?.name}`
+                : selectedStarter
                 ? `${selectedStarter.emoji} ${selectedStarter.name} begon`
                 : "Wie begon?"}
             </button>

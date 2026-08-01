@@ -109,4 +109,22 @@ describe("HomeClient", () => {
     expect(await screen.findByText("Laatste uitslagen · Rummikub")).toBeDefined();
     expect(screen.getByText(/meestal ~35 min/)).toBeDefined();
   });
+
+  it("slaat de beginnersvraag over bij een spel waar dat niet uitmaakt", () => {
+    // Take 5: er wordt gedeeld, dus "wie begon?" zegt niets. De wizard hoort dan
+    // meteen op de scores uit te komen.
+    const geenBeginner = { ...GAME, starter_matters: false } as Game;
+    render(
+      <HomeClient
+        games={[geenBeginner]}
+        players={PLAYERS}
+        spotlight={{ cards: SPOTLIGHT, seed: 0 }}
+      />
+    );
+
+    fireEvent.click(screen.getByLabelText("Rummikub nu spelen"));
+
+    expect(screen.queryByText("Wie begon? 🎲")).toBeNull();
+    expect(screen.getByText("Scores invullen 🎯")).toBeDefined();
+  });
 });

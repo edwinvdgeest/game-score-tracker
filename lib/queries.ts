@@ -174,7 +174,11 @@ export async function deleteOrDeactivatePlayer(id: string): Promise<void> {
 const GAME_LIST_COLUMNS =
   "id, name, emoji, category, min_players, max_players, difficulty, created_at, " +
   "is_favorite, is_archived, lowest_score_wins, image_url, thumbnail_url, " +
-  "variant_note, parent_game_id, text_source, text_locked";
+  "variant_note, parent_game_id, text_source, text_locked, " +
+  // Speelregels die de wizard nodig heeft om de juiste stappen te tonen. Vergeet je ze
+  // hier, dan zijn ze undefined op elk spel in de quick-log en valt alles stil terug op
+  // het oude gedrag — terwijl de spelpagina (select "*") ze wél laat zien.
+  "starter_matters";
 
 /** Hoofdspel-velden die een variant kan erven, als embedded select. */
 const PARENT_EMBED =

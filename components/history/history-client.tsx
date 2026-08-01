@@ -342,22 +342,25 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
                   </select>
                 )}
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold">Beginner (wie begon?)</label>
-                <select
-                  value={editStarterId}
-                  onChange={(e) => setEditStarterId(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
-                  style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
-                >
-                  <option value="">Onbekend</option>
-                  {players.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.emoji} {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Bij een spel waar het niet uitmaakt wie begint is dit veld ruis. */}
+              {(session.game.starter_matters ?? true) && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold">Beginner (wie begon?)</label>
+                  <select
+                    value={editStarterId}
+                    onChange={(e) => setEditStarterId(e.target.value)}
+                    className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
+                    style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
+                  >
+                    <option value="">Onbekend</option>
+                    {players.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.emoji} {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="space-y-1">
                 <label className="text-xs font-bold">Datum & tijd</label>
                 <input

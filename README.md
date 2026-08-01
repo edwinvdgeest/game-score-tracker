@@ -24,6 +24,7 @@ Score tracker voor Edwin & Lisanne (en soms Minou). Score loggen in 2 taps, dire
 | 11 | `010_game_metadata.sql` | Doosfoto's, omschrijving, speluitleg en variant-koppeling |
 | 12 | `011_seed_dutch_game_text.sql` | Nederlandse teksten voor de bestaande spellen |
 | 13 | `012_clear_bgg_sync_state.sql` | Restanten van de verwijderde BGG-koppeling opruimen |
+| 14 | `013_starter_matters.sql` | Per spel: maakt het uit wie begint? |
 
 > Let op: er zijn twee bestanden met prefix `002`. Draai `002_seed_data.sql` vóór
 > `002_nullable_winner_cleanup.sql`.
