@@ -37,6 +37,32 @@ describe("stepsFor", () => {
     // starter_matters ontbreekt volledig — het oude gedrag is dan het juiste.
     expect(stepsFor(makeGame())).toEqual(["game", "starter", "scores"]);
   });
+
+  it("geeft het rondescherm bij een rondespel", () => {
+    expect(stepsFor(makeGame({ round_format: "vast", round_count: 10 }))).toEqual([
+      "game",
+      "starter",
+      "rounds",
+    ]);
+  });
+
+  it("valt terug op één totaal als de rondes voor dit potje overgeslagen zijn", () => {
+    // Rondes zijn nooit verplicht: soms wordt de score anders bijgehouden. Dat geldt
+    // per potje — de spelinstelling blijft staan.
+    const game = makeGame({ round_format: "grens", round_target: 66 });
+    expect(stepsFor(game, { skipRounds: true })).toEqual(["game", "starter", "scores"]);
+    expect(stepsFor(game)).toEqual(["game", "starter", "rounds"]);
+  });
+
+  it("combineert overgeslagen rondes met een spel zonder beginner-stap", () => {
+    // Take 5: geen beginner én rondes overgeslagen — dan blijven er twee stappen over.
+    const game = makeGame({
+      starter_matters: false,
+      round_format: "grens",
+      round_target: 66,
+    });
+    expect(stepsFor(game, { skipRounds: true })).toEqual(["game", "scores"]);
+  });
 });
 
 describe("nextStep / prevStep", () => {
@@ -77,5 +103,11 @@ describe("stepAfterGame", () => {
 
   it("landt meteen op de scores als de beginner niet uitmaakt", () => {
     expect(stepAfterGame(makeGame({ starter_matters: false }))).toBe("scores");
+  });
+
+  it("landt op het rondescherm bij een rondespel zonder beginner-stap", () => {
+    expect(
+      stepAfterGame(makeGame({ starter_matters: false, round_format: "vrij" }))
+    ).toBe("rounds");
   });
 });

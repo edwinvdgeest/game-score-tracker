@@ -13,6 +13,17 @@ export type Step = "game" | "starter" | "scores" | "rounds" | "done";
 export type FormStep = Exclude<Step, "done">;
 
 /**
+ * Keuzes die alleen voor dít potje gelden en niet in de spelinstellingen staan.
+ */
+export type StepOptions = {
+  /**
+   * Dit potje zonder rondes loggen, ook al is het een rondespel — je hield de score
+   * bijvoorbeeld op papier bij. Zet de invoerstap terug op één totaal per speler.
+   */
+  skipRounds?: boolean;
+};
+
+/**
  * Welke stappen dit potje heeft, in volgorde.
  *
  * Niet elk spel heeft ze allemaal: bij een spel waar het niet uitmaakt wie begint
@@ -22,7 +33,7 @@ export type FormStep = Exclude<Step, "done">;
  * Zolang er nog geen spel gekozen is tonen we de volledige lijst: dat is de eerlijkste
  * gok over wat er komt, en zodra er getikt wordt klopt het alsnog.
  */
-export function stepsFor(game: Game | null): FormStep[] {
+export function stepsFor(game: Game | null, options: StepOptions = {}): FormStep[] {
   if (!game) return ["game", "starter", "scores"];
 
   const steps: FormStep[] = ["game"];
@@ -31,7 +42,8 @@ export function stepsFor(game: Game | null): FormStep[] {
   if (game.starter_matters ?? true) steps.push("starter");
   // Rondespellen krijgen het rondescherm in plaats van de losse score-invoer: het is
   // dezelfde plek in de wizard, alleen een andere manier om er een totaal in te krijgen.
-  steps.push(usesRounds(game) ? "rounds" : "scores");
+  // Rondes bijhouden is nooit verplicht — vandaar de ontsnapping via skipRounds.
+  steps.push(usesRounds(game) && !options.skipRounds ? "rounds" : "scores");
   return steps;
 }
 
@@ -55,6 +67,6 @@ export function prevStep(steps: FormStep[], current: Step): FormStep | null {
  * Eén plek voor de drie ingangen die dat doen: tikken in het spelraster, "Nog eens?" vanaf
  * de homepage, en een spel dat via `?game=` in de URL binnenkomt.
  */
-export function stepAfterGame(game: Game): FormStep {
-  return nextStep(stepsFor(game), "game") ?? "scores";
+export function stepAfterGame(game: Game, options: StepOptions = {}): FormStep {
+  return nextStep(stepsFor(game, options), "game") ?? "scores";
 }

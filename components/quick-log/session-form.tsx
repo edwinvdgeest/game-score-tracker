@@ -86,6 +86,11 @@ export function SessionForm({
   const [scores, setScores] = useState<Record<string, string>>({});
   /** Rondes bij een rondespel: roundScores[i] is ronde i+1, per speler-id de ruwe tekst. */
   const [roundScores, setRoundScores] = useState<Array<Record<string, string>>>([]);
+  /**
+   * Dit potje zonder rondes loggen, ook al is het een rondespel — bijgehouden op papier,
+   * of gewoon geen zin in. Geldt alleen voor dit potje; de spelinstelling blijft staan.
+   */
+  const [skipRounds, setSkipRounds] = useState(false);
   const [duration, setDuration] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
@@ -194,7 +199,24 @@ export function SessionForm({
   }, []);
 
   /** De stappen van dít potje: bij een spel waar de beginner niet uitmaakt zijn het er twee. */
-  const steps = useMemo(() => stepsFor(selectedGame), [selectedGame]);
+  const steps = useMemo(
+    () => stepsFor(selectedGame, { skipRounds }),
+    [selectedGame, skipRounds]
+  );
+
+  /** Telt dit potje daadwerkelijk rondes? Een rondespel kun je per potje overslaan. */
+  const loggingRounds = usesRounds(selectedGame) && !skipRounds;
+
+  /** Wisselen tussen rondes en één totaal, midden in het invullen. */
+  const switchToScores = useCallback(() => {
+    setSkipRounds(true);
+    setStep("scores");
+  }, []);
+
+  const switchToRounds = useCallback(() => {
+    setSkipRounds(false);
+    setStep("rounds");
+  }, []);
 
   const handleGameSelect = useCallback((game: Game) => {
     setSelectedGame(game);
@@ -226,6 +248,7 @@ export function SessionForm({
     setSelectedStarter(null);
     setScores({});
     setRoundScores([]);
+    setSkipRounds(false);
     setDuration(null);
     setNote("");
     setWinner(undefined);
@@ -263,6 +286,7 @@ export function SessionForm({
     setSelectedStarter(null);
     setScores({});
     setRoundScores([]);
+    setSkipRounds(false);
     setWinner(undefined);
     setSavedSessionId(null);
     setSecondsLeft(null);
@@ -291,10 +315,8 @@ export function SessionForm({
       // Twee wegen naar dezelfde array: een rondespel telt de rondes op, de rest leest
       // de losse invoervelden. Vanaf hier is er geen verschil meer — het eindtotaal is
       // wat er in session_players.score belandt en wat alle statistieken lezen.
-      const roundEntries = usesRounds(selectedGame)
-        ? parseRoundEntries(playerIds, roundScores)
-        : [];
-      const scoresArray = usesRounds(selectedGame)
+      const roundEntries = loggingRounds ? parseRoundEntries(playerIds, roundScores) : [];
+      const scoresArray = loggingRounds
         ? sumRounds(playerIds, roundEntries)
         : parseScoreEntries(playerIds, scoreValues);
       const winnerId = computeWinner(
@@ -357,7 +379,16 @@ export function SessionForm({
         setSaving(false);
       }
     },
-    [selectedGame, selectedStarter, activePlayers, marathon, duration, note, roundScores]
+    [
+      selectedGame,
+      selectedStarter,
+      activePlayers,
+      marathon,
+      duration,
+      note,
+      roundScores,
+      loggingRounds,
+    ]
   );
 
   /**
@@ -367,13 +398,13 @@ export function SessionForm({
    * rondes. Zonder deze afleiding zou het winnaarsscherm lege scores laten zien.
    */
   const displayScores = useMemo(() => {
-    if (!usesRounds(selectedGame)) return scores;
+    if (!loggingRounds) return scores;
     const playerIds = activePlayers.map((p) => p.id);
     const totals = sumRounds(playerIds, parseRoundEntries(playerIds, roundScores));
     return Object.fromEntries(
       totals.map((entry) => [entry.player_id, entry.score === null ? "" : String(entry.score)])
     );
-  }, [selectedGame, scores, activePlayers, roundScores]);
+  }, [loggingRounds, scores, activePlayers, roundScores]);
 
   /** Uitslag delen: share sheet op de telefoon, klembord op de desktop. */
   const handleShare = useCallback(async () => {
@@ -760,6 +791,7 @@ export function SessionForm({
               rounds={roundScores}
               onRoundsChange={setRoundScores}
               onSave={() => void handleSave(scores)}
+              onSkipRounds={switchToScores}
               saving={saving}
               duration={duration}
               onDurationChange={setDuration}
@@ -778,6 +810,9 @@ export function SessionForm({
               note={note}
               onNoteChange={setNote}
               lowestScoreWins={selectedGame?.lowest_score_wins ?? false}
+              // Alleen bij een rondespel waarvan je de rondes overgeslagen hebt: de
+              // weg terug. Bij een gewoon spel is er niets om naar terug te gaan.
+              onUseRounds={usesRounds(selectedGame) ? switchToRounds : undefined}
             />
           )}
         </>

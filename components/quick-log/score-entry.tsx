@@ -14,6 +14,11 @@ interface ScoreEntryProps {
   note: string;
   onNoteChange: (value: string) => void;
   lowestScoreWins?: boolean;
+  /**
+   * Alleen gezet bij een rondespel waarvan de rondes overgeslagen zijn: de weg terug
+   * naar het rondescherm.
+   */
+  onUseRounds?: () => void;
 }
 
 export function ScoreEntry({
@@ -27,6 +32,7 @@ export function ScoreEntry({
   note,
   onNoteChange,
   lowestScoreWins = false,
+  onUseRounds,
 }: ScoreEntryProps) {
   const allFilled = players.every(
     (p) => scores[p.id] !== undefined && scores[p.id]!.trim() !== ""
@@ -102,6 +108,16 @@ export function ScoreEntry({
         >
           {saving ? "Opslaan..." : "Opslaan 🎉"}
         </button>
+        {onUseRounds && (
+          <button
+            type="button"
+            onClick={onUseRounds}
+            className="w-full mt-2 py-2 font-bold text-xs cursor-pointer underline"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            Toch per ronde bijhouden
+          </button>
+        )}
       </div>
     </div>
   );

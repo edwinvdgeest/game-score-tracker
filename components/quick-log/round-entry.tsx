@@ -21,6 +21,8 @@ interface RoundEntryProps {
   rounds: Array<Record<string, string>>;
   onRoundsChange: (rounds: Array<Record<string, string>>) => void;
   onSave: () => void;
+  /** Dit potje toch zonder rondes loggen: door naar één totaal per speler. */
+  onSkipRounds: () => void;
   saving: boolean;
   duration: number | null;
   onDurationChange: (mins: number | null) => void;
@@ -45,6 +47,7 @@ export function RoundEntry({
   rounds,
   onRoundsChange,
   onSave,
+  onSkipRounds,
   saving,
   duration,
   onDurationChange,
@@ -328,6 +331,16 @@ export function RoundEntry({
               Toch nog een ronde
             </button>
           )}
+
+          {/* Rondes bijhouden is nooit verplicht: soms staat de stand al op papier. */}
+          <button
+            type="button"
+            onClick={onSkipRounds}
+            className="w-full py-2 font-bold text-xs cursor-pointer underline"
+            style={{ color: "var(--muted-foreground)" }}
+          >
+            Alleen het eindtotaal invullen
+          </button>
         </div>
       )}
 

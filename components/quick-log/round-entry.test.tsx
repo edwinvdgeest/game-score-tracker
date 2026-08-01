@@ -22,10 +22,12 @@ function Harness({
   config,
   lowestScoreWins = false,
   onSave = () => {},
+  onSkipRounds = () => {},
 }: {
   config: RoundConfig;
   lowestScoreWins?: boolean;
   onSave?: () => void;
+  onSkipRounds?: () => void;
 }) {
   const [rounds, setRounds] = useState<Array<Record<string, string>>>([]);
   return (
@@ -36,6 +38,7 @@ function Harness({
       rounds={rounds}
       onRoundsChange={setRounds}
       onSave={onSave}
+      onSkipRounds={onSkipRounds}
       saving={false}
       duration={null}
       onDurationChange={() => {}}
@@ -152,6 +155,22 @@ describe("RoundEntry — corrigeren", () => {
     expect(screen.getByLabelText("Ronde 1 aanpassen")).toBeDefined();
     expect(screen.queryByLabelText("Ronde 2 aanpassen")).toBeNull();
     expect(screen.getByText("7")).toBeDefined();
+  });
+});
+
+describe("RoundEntry — rondes overslaan", () => {
+  it("biedt altijd de weg naar alleen het eindtotaal", () => {
+    // Rondes bijhouden is nooit verplicht: soms staat de stand al op papier.
+    const onSkipRounds = vi.fn();
+    render(
+      <Harness
+        config={{ format: "vast", count: 10, target: null }}
+        onSkipRounds={onSkipRounds}
+      />
+    );
+
+    fireEvent.click(screen.getByText("Alleen het eindtotaal invullen"));
+    expect(onSkipRounds).toHaveBeenCalledOnce();
   });
 });
 

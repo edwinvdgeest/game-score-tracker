@@ -116,6 +116,12 @@ Een eerdere ronde corrigeer je door hem in de lijst "Gespeelde rondes" aan te ti
 🗑️ ernaast gooit hem weg en hernummert de rest. Bij "tot een grens" kun je na de melding
 alsnog "Toch nog een ronde" kiezen, voor groepen die de ronde uitspelen.
 
+**Rondes zijn nooit verplicht.** Hield je de stand op papier bij, of heb je gewoon geen zin
+om per ronde te tikken? Onderaan het rondescherm staat **"Alleen het eindtotaal invullen"**;
+dan krijg je het gewone scoreveld en wordt er niets in `session_rounds` gezet. Vanaf dat
+scherm brengt **"Toch per ronde bijhouden"** je weer terug. Die keuze geldt per potje — de
+rondevorm van het spel blijft gewoon staan voor de volgende keer.
+
 > **De invariant.** `session_players.score` blijft het eindtotaal en
 > `game_sessions.winner_id` blijft de winnaar; `session_rounds` is alleen de onderbouwing.
 > Daarom weten het leaderboard, de badges, de duel-pagina, de spotlight, de seizoenen, het
