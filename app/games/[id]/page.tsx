@@ -18,6 +18,10 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
 
   if (!stats) notFound();
 
+  // Bij een spel waar het niet uitmaakt wie begint zegt "Beginnersvoordeel" niets.
+  // De statistiek zelf blijft kloppen — we tonen 'm alleen niet.
+  const starterAdvantage = (stats.game.starter_matters ?? true) ? starterStat : null;
+
   return (
     <div className="space-y-6">
       <Link
@@ -27,7 +31,7 @@ export default async function GameDetailPage({ params }: GameDetailPageProps) {
       >
         ← Terug naar spellen
       </Link>
-      <GameDetailClient stats={stats} starterStat={starterStat} />
+      <GameDetailClient stats={stats} starterStat={starterAdvantage} />
     </div>
   );
 }

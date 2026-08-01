@@ -8,6 +8,7 @@ import type { SessionDetail } from "@/lib/queries";
 import type { Player } from "@/lib/schemas";
 import { computeWinner, parseScoreEntries } from "@/lib/stats";
 import { formatDate } from "@/lib/utils";
+import { SessionRounds } from "./session-rounds";
 
 interface HistoryClientProps {
   sessions: SessionDetail[];
@@ -255,6 +256,15 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
             </div>
           )}
 
+          {/* Rondeverloop — alleen als er rondes opgeslagen zijn bij dit potje */}
+          {(session.rounds?.[0]?.count ?? 0) > 0 && (
+            <SessionRounds
+              sessionId={session.id}
+              players={session.scores.map((entry) => entry.player)}
+              winnerFormat={session.game.round_format === "winnaar"}
+            />
+          )}
+
           {/* Notitie */}
           {session.notes && (
             <div
@@ -282,6 +292,15 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
                       </span>
                     )}
                   </label>
+                  {(session.rounds?.[0]?.count ?? 0) > 0 && (
+                    <p
+                      className="text-xs font-semibold italic"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      Let op: het opgeslagen rondeverloop vervalt zodra je hier een score
+                      aanpast — de rondes zouden dan niet meer optellen tot het totaal.
+                    </p>
+                  )}
                   {editParticipants.map((p) => (
                     <div key={p.id} className="flex items-center gap-2">
                       <span className="text-lg w-6 text-center">{p.emoji}</span>
@@ -342,22 +361,25 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
                   </select>
                 )}
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold">Beginner (wie begon?)</label>
-                <select
-                  value={editStarterId}
-                  onChange={(e) => setEditStarterId(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
-                  style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
-                >
-                  <option value="">Onbekend</option>
-                  {players.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.emoji} {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Bij een spel waar het niet uitmaakt wie begint is dit veld ruis. */}
+              {(session.game.starter_matters ?? true) && (
+                <div className="space-y-1">
+                  <label className="text-xs font-bold">Beginner (wie begon?)</label>
+                  <select
+                    value={editStarterId}
+                    onChange={(e) => setEditStarterId(e.target.value)}
+                    className="w-full rounded-xl border px-3 py-2 text-sm font-semibold"
+                    style={{ backgroundColor: "var(--muted)", color: "var(--foreground)" }}
+                  >
+                    <option value="">Onbekend</option>
+                    {players.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.emoji} {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="space-y-1">
                 <label className="text-xs font-bold">Datum & tijd</label>
                 <input

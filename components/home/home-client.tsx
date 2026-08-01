@@ -6,6 +6,7 @@ import type { SpotlightPayload } from "@/lib/queries";
 import { MarathonStartButton } from "@/components/marathon/marathon-start-button";
 import { SessionForm, type SessionFormState } from "@/components/quick-log/session-form";
 import { useSpotlightPrefs } from "@/lib/hooks/useSpotlightPrefs";
+import { stepAfterGame } from "@/lib/wizard-steps";
 import { SpotlightCarousel } from "./spotlight-carousel";
 import { GameRecapCard } from "./game-recap-card";
 
@@ -36,7 +37,10 @@ export function HomeClient({
 
   const [formState, setFormState] = useState<SessionFormState>({
     selectedGame: preselectedGame,
-    step: preselectedGame ? "starter" : "game",
+    // Welke stap dat is hangt van het spel af: bij een spel waar de beginner niet
+    // uitmaakt sla je die stap over. Zonder dit toont de kaart boven het formulier
+    // één render lang de verkeerde toestand.
+    step: preselectedGame ? stepAfterGame(preselectedGame) : "game",
     activePlayerCount: 0,
   });
   const [pick, setPick] = useState<{ game: Game; nonce: number } | null>(null);

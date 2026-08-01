@@ -13,16 +13,25 @@ import type {
 import { GameGrid } from "./game-grid";
 import { StarterPicker } from "./starter-picker";
 import { ScoreEntry } from "./score-entry";
+import { RoundEntry } from "./round-entry";
 import { HypeCard } from "./hype-card";
 import { WinnerHighlights } from "./winner-highlights";
 import { BadgeUnlock } from "./badge-unlock";
 import { FinalScores } from "./final-scores";
 import { cn } from "@/lib/utils";
 import { computeWinner, parseScoreEntries } from "@/lib/stats";
+import { parseRoundEntries, roundConfigOf, sumRounds, usesRounds } from "@/lib/rounds";
 import { jsonFetcher } from "@/lib/hooks/fetcher";
 import { formatShareText, shareResult } from "@/lib/share";
 import { toast } from "sonner";
 import { useActiveMarathon } from "@/lib/hooks/useMarathon";
+import {
+  stepsFor,
+  nextStep,
+  prevStep,
+  stepAfterGame,
+  type Step,
+} from "@/lib/wizard-steps";
 
 const GUEST_EMOJIS = ["🎭", "🌟", "🎪", "🦋", "🌈", "🎯", "🎨", "🎸", "🌺", "🦊"];
 
@@ -32,7 +41,7 @@ const AUTO_RESET_SECONDS = 25;
 // Dynamically load confetti to avoid SSR issues
 const ReactConfetti = dynamic(() => import("react-confetti"), { ssr: false });
 
-type Step = "game" | "starter" | "scores" | "done";
+export type { Step };
 
 /** Wat de homepage van het formulier moet weten om de juiste kaart te tonen. */
 export type SessionFormState = {
@@ -54,12 +63,6 @@ interface SessionFormProps {
   onStateChange?: (state: SessionFormState) => void;
 }
 
-const PROGRESS_STEP: Record<Exclude<Step, "done">, number> = {
-  game: 0,
-  starter: 1,
-  scores: 2,
-};
-
 /** Trigg haptic feedback als de browser het ondersteunt */
 function vibrate(pattern: number | number[]) {
   if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -75,10 +78,19 @@ export function SessionForm({
   onStateChange,
 }: SessionFormProps) {
   const preselectedGame = preselectedGameId ? (games.find((g) => g.id === preselectedGameId) ?? null) : null;
-  const [step, setStep] = useState<Step>(preselectedGame ? "starter" : "game");
+  const [step, setStep] = useState<Step>(
+    preselectedGame ? stepAfterGame(preselectedGame) : "game"
+  );
   const [selectedGame, setSelectedGame] = useState<Game | null>(preselectedGame);
   const [selectedStarter, setSelectedStarter] = useState<Player | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
+  /** Rondes bij een rondespel: roundScores[i] is ronde i+1, per speler-id de ruwe tekst. */
+  const [roundScores, setRoundScores] = useState<Array<Record<string, string>>>([]);
+  /**
+   * Dit potje zonder rondes loggen, ook al is het een rondespel — bijgehouden op papier,
+   * of gewoon geen zin in. Geldt alleen voor dit potje; de spelinstelling blijft staan.
+   */
+  const [skipRounds, setSkipRounds] = useState(false);
   const [duration, setDuration] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
@@ -152,7 +164,7 @@ export function SessionForm({
 
   // Pre-game hype: streak, h2h, starter-voordeel, spel-koning
   const hypeKey =
-    step === "scores" && selectedGame && playerIdsKey
+    (step === "scores" || step === "rounds") && selectedGame && playerIdsKey
       ? `/api/pre-game?game_id=${selectedGame.id}&player_ids=${playerIdsKey}${
           selectedStarter ? `&starter_id=${selectedStarter.id}` : ""
         }`
@@ -186,26 +198,57 @@ export function SessionForm({
     });
   }, []);
 
-  const handleGameSelect = useCallback((game: Game) => {
-    setSelectedGame(game);
-    setStep("starter");
-  }, []);
+  /** De stappen van dít potje: bij een spel waar de beginner niet uitmaakt zijn het er twee. */
+  const steps = useMemo(
+    () => stepsFor(selectedGame, { skipRounds }),
+    [selectedGame, skipRounds]
+  );
 
-  const handleStarterSelect = useCallback((player: Player) => {
-    setSelectedStarter(player);
+  /** Telt dit potje daadwerkelijk rondes? Een rondespel kun je per potje overslaan. */
+  const loggingRounds = usesRounds(selectedGame) && !skipRounds;
+
+  /** Wisselen tussen rondes en één totaal, midden in het invullen. */
+  const switchToScores = useCallback(() => {
+    setSkipRounds(true);
     setStep("scores");
   }, []);
+
+  const switchToRounds = useCallback(() => {
+    setSkipRounds(false);
+    setStep("rounds");
+  }, []);
+
+  const handleGameSelect = useCallback((game: Game) => {
+    setSelectedGame(game);
+    setStep(stepAfterGame(game));
+  }, []);
+
+  /** Na de beginner komt de invoerstap: losse scores, of het rondescherm. */
+  const stepAfterStarter = useCallback(
+    () => nextStep(stepsFor(selectedGame), "starter") ?? "scores",
+    [selectedGame]
+  );
+
+  const handleStarterSelect = useCallback(
+    (player: Player) => {
+      setSelectedStarter(player);
+      setStep(stepAfterStarter());
+    },
+    [stepAfterStarter]
+  );
 
   const handleStarterSkip = useCallback(() => {
     setSelectedStarter(null);
-    setStep("scores");
-  }, []);
+    setStep(stepAfterStarter());
+  }, [stepAfterStarter]);
 
   const resetForm = useCallback(() => {
     setStep("game");
     setSelectedGame(null);
     setSelectedStarter(null);
     setScores({});
+    setRoundScores([]);
+    setSkipRounds(false);
     setDuration(null);
     setNote("");
     setWinner(undefined);
@@ -239,9 +282,11 @@ export function SessionForm({
   useEffect(() => {
     if (!gamePick) return;
     setSelectedGame(gamePick.game);
-    setStep("starter");
+    setStep(stepAfterGame(gamePick.game));
     setSelectedStarter(null);
     setScores({});
+    setRoundScores([]);
+    setSkipRounds(false);
     setWinner(undefined);
     setSavedSessionId(null);
     setSecondsLeft(null);
@@ -265,11 +310,15 @@ export function SessionForm({
       if (!selectedGame) return;
       setSaving(true);
 
-      // Eén keer parsen, en dezelfde array gaat naar computeWinner en naar de API.
-      const scoresArray = parseScoreEntries(
-        activePlayers.map((p) => p.id),
-        scoreValues
-      );
+      const playerIds = activePlayers.map((p) => p.id);
+
+      // Twee wegen naar dezelfde array: een rondespel telt de rondes op, de rest leest
+      // de losse invoervelden. Vanaf hier is er geen verschil meer — het eindtotaal is
+      // wat er in session_players.score belandt en wat alle statistieken lezen.
+      const roundEntries = loggingRounds ? parseRoundEntries(playerIds, roundScores) : [];
+      const scoresArray = loggingRounds
+        ? sumRounds(playerIds, roundEntries)
+        : parseScoreEntries(playerIds, scoreValues);
       const winnerId = computeWinner(
         scoresArray,
         selectedGame.lowest_score_wins ?? false
@@ -287,6 +336,7 @@ export function SessionForm({
             winner_id: computedWinner?.id ?? null,
             starter_id: selectedStarter?.id ?? null,
             scores: scoresArray,
+            rounds: roundEntries.length > 0 ? roundEntries : undefined,
             marathon_id: marathon?.id ?? null,
             duration_minutes: duration ?? null,
             notes: note.trim() || null,
@@ -329,15 +379,39 @@ export function SessionForm({
         setSaving(false);
       }
     },
-    [selectedGame, selectedStarter, activePlayers, marathon, duration, note]
+    [
+      selectedGame,
+      selectedStarter,
+      activePlayers,
+      marathon,
+      duration,
+      note,
+      roundScores,
+      loggingRounds,
+    ]
   );
+
+  /**
+   * De scores zoals het eindscherm ze toont.
+   *
+   * Bij een rondespel staat er niets in `scores` — daar zijn de totalen de som van de
+   * rondes. Zonder deze afleiding zou het winnaarsscherm lege scores laten zien.
+   */
+  const displayScores = useMemo(() => {
+    if (!loggingRounds) return scores;
+    const playerIds = activePlayers.map((p) => p.id);
+    const totals = sumRounds(playerIds, parseRoundEntries(playerIds, roundScores));
+    return Object.fromEntries(
+      totals.map((entry) => [entry.player_id, entry.score === null ? "" : String(entry.score)])
+    );
+  }, [loggingRounds, scores, activePlayers, roundScores]);
 
   /** Uitslag delen: share sheet op de telefoon, klembord op de desktop. */
   const handleShare = useCallback(async () => {
     if (!selectedGame) return;
     const parsed = parseScoreEntries(
       activePlayers.map((p) => p.id),
-      scores
+      displayScores
     );
     const text = formatShareText({
       game: { name: selectedGame.name, emoji: selectedGame.emoji },
@@ -354,21 +428,21 @@ export function SessionForm({
     const outcome = await shareResult(text);
     if (outcome === "copied") toast.success("📋 Uitslag gekopieerd");
     if (outcome === "failed") toast.error("Delen lukte niet op dit apparaat.");
-  }, [selectedGame, activePlayers, scores, winner]);
+  }, [selectedGame, activePlayers, displayScores, winner]);
 
   const handleScoreChange = useCallback((playerId: string, value: string) => {
     setScores((prev) => ({ ...prev, [playerId]: value }));
   }, []);
 
   const handleBack = useCallback(() => {
-    if (step === "starter") {
-      setStep("game");
-      setSelectedGame(null);
-    } else if (step === "scores") {
-      setStep("starter");
-      setSelectedStarter(null);
-    }
-  }, [step]);
+    const previous = prevStep(steps, step);
+    if (!previous) return;
+    // Een stap terug maakt ook ongedaan wat je op de stap die je verlaat gekozen had.
+    if (step === "starter") setSelectedGame(null);
+    if (step === "scores" || step === "rounds") setSelectedStarter(null);
+    if (previous === "game") setSelectedGame(null);
+    setStep(previous);
+  }, [steps, step]);
 
   // Swipe-to-navigate: swipe left = vooruit (als mogelijk), swipe right = terug
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -384,23 +458,21 @@ export function SessionForm({
       if (Math.abs(dx) < MIN_SWIPE) return;
 
       if (dx < 0) {
-        // Swipe left = vooruit — alleen als een game geselecteerd is
-        if (step === "game" && selectedGame) {
-          setSlideDir("left");
-          setTimeout(() => { setSlideDir(null); setStep("starter"); }, 200);
-        } else if (step === "starter") {
-          setSlideDir("left");
-          setTimeout(() => { setSlideDir(null); setStep("scores"); }, 200);
-        }
+        // Swipe left = vooruit — alleen als er een spel gekozen is, want zonder spel
+        // weten we de stappenlijst nog niet.
+        if (!selectedGame) return;
+        const forward = nextStep(steps, step);
+        if (!forward) return;
+        setSlideDir("left");
+        setTimeout(() => { setSlideDir(null); setStep(forward); }, 200);
       } else {
         // Swipe right = terug
-        if (step === "starter" || step === "scores") {
-          setSlideDir("right");
-          setTimeout(() => { setSlideDir(null); handleBack(); }, 200);
-        }
+        if (!prevStep(steps, step)) return;
+        setSlideDir("right");
+        setTimeout(() => { setSlideDir(null); handleBack(); }, 200);
       }
     },
-    [step, selectedGame, handleBack]
+    [steps, step, selectedGame, handleBack]
   );
 
   if (step === "done" && selectedGame) {
@@ -437,7 +509,7 @@ export function SessionForm({
 
         <FinalScores
           players={activePlayers}
-          scores={scores}
+          scores={displayScores}
           winnerId={winner?.id ?? null}
           lowestScoreWins={selectedGame.lowest_score_wins ?? false}
         />
@@ -509,7 +581,7 @@ export function SessionForm({
     );
   }
 
-  const progressStep = step !== "done" ? PROGRESS_STEP[step] : 3;
+  const progressStep = step !== "done" ? steps.indexOf(step) : steps.length;
 
   return (
     <div
@@ -535,11 +607,11 @@ export function SessionForm({
         </div>
       )}
 
-      {/* Progress indicator — 3 steps */}
+      {/* Voortgang — zoveel segmenten als dit potje stappen heeft */}
       <div className="flex gap-2">
-        {[0, 1, 2].map((i) => (
+        {steps.map((name, i) => (
           <div
-            key={i}
+            key={name}
             className="h-1.5 flex-1 rounded-full transition-colors"
             style={{
               backgroundColor:
@@ -692,7 +764,7 @@ export function SessionForm({
         </>
       )}
 
-      {step === "scores" && (
+      {(step === "scores" || step === "rounds") && (
         <>
           <div className="flex items-center gap-2">
             <button
@@ -701,24 +773,48 @@ export function SessionForm({
               style={{ color: "var(--muted-foreground)" }}
             >
               ←{" "}
-              {selectedStarter
+              {/* Bij een spel zonder beginner-stap gaat terug naar de spelkeuze, dus
+                  noemt de knop het spel in plaats van de beginnersvraag. */}
+              {!steps.includes("starter")
+                ? `${selectedGame?.emoji} ${selectedGame?.name}`
+                : selectedStarter
                 ? `${selectedStarter.emoji} ${selectedStarter.name} begon`
                 : "Wie begon?"}
             </button>
           </div>
           <HypeCard facts={hypeData?.facts ?? []} />
-          <ScoreEntry
-            players={activePlayers}
-            scores={scores}
-            onChange={handleScoreChange}
-            onSave={() => void handleSave(scores)}
-            saving={saving}
-            duration={duration}
-            onDurationChange={setDuration}
-            note={note}
-            onNoteChange={setNote}
-            lowestScoreWins={selectedGame?.lowest_score_wins ?? false}
-          />
+          {step === "rounds" ? (
+            <RoundEntry
+              players={activePlayers}
+              config={roundConfigOf(selectedGame)}
+              lowestScoreWins={selectedGame?.lowest_score_wins ?? false}
+              rounds={roundScores}
+              onRoundsChange={setRoundScores}
+              onSave={() => void handleSave(scores)}
+              onSkipRounds={switchToScores}
+              saving={saving}
+              duration={duration}
+              onDurationChange={setDuration}
+              note={note}
+              onNoteChange={setNote}
+            />
+          ) : (
+            <ScoreEntry
+              players={activePlayers}
+              scores={scores}
+              onChange={handleScoreChange}
+              onSave={() => void handleSave(scores)}
+              saving={saving}
+              duration={duration}
+              onDurationChange={setDuration}
+              note={note}
+              onNoteChange={setNote}
+              lowestScoreWins={selectedGame?.lowest_score_wins ?? false}
+              // Alleen bij een rondespel waarvan je de rondes overgeslagen hebt: de
+              // weg terug. Bij een gewoon spel is er niets om naar terug te gaan.
+              onUseRounds={usesRounds(selectedGame) ? switchToRounds : undefined}
+            />
+          )}
         </>
       )}
     </div>

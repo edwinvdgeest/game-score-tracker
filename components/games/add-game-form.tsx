@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@/lib/utils";
 import type { GameCategory } from "@/lib/schemas";
+import { SettingToggle } from "./setting-toggle";
+import { RoundFormatPicker } from "./round-format-picker";
+import { normalizeRoundConfig, type RoundFormat } from "@/lib/rounds";
 
 const categories: Array<{ value: GameCategory; label: string }> = [
   { value: "bordspel", label: "🏠 Bordspel" },
@@ -40,6 +43,10 @@ export function AddGameForm() {
   const [category, setCategory] = useState<GameCategory>("bordspel");
   const [difficulty, setDifficulty] = useState<number | null>(null);
   const [lowestScoreWins, setLowestScoreWins] = useState(false);
+  const [starterMatters, setStarterMatters] = useState(true);
+  const [roundFormat, setRoundFormat] = useState<RoundFormat>("geen");
+  const [roundCount, setRoundCount] = useState("");
+  const [roundTarget, setRoundTarget] = useState("");
   const [minPlayers, setMinPlayers] = useState<string>("2");
   const [maxPlayers, setMaxPlayers] = useState<string>("4");
 
@@ -52,15 +59,21 @@ export function AddGameForm() {
       const response = await fetch("/api/games", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          emoji,
-          category,
-          difficulty: difficulty ?? null,
-          min_players: parseInt(minPlayers, 10) || 2,
-          max_players: parseInt(maxPlayers, 10) || 4,
-          lowest_score_wins: lowestScoreWins,
-        }),
+        body: JSON.stringify(
+          normalizeRoundConfig({
+            name: name.trim(),
+            emoji,
+            category,
+            difficulty: difficulty ?? null,
+            min_players: parseInt(minPlayers, 10) || 2,
+            max_players: parseInt(maxPlayers, 10) || 4,
+            lowest_score_wins: lowestScoreWins,
+            starter_matters: starterMatters,
+            round_format: roundFormat,
+            round_count: parseInt(roundCount, 10) || null,
+            round_target: parseInt(roundTarget, 10) || null,
+          })
+        ),
       });
 
       if (!response.ok) {
@@ -74,6 +87,10 @@ export function AddGameForm() {
       setCategory("bordspel");
       setDifficulty(null);
       setLowestScoreWins(false);
+      setStarterMatters(true);
+      setRoundFormat("geen");
+      setRoundCount("");
+      setRoundTarget("");
       setMinPlayers("2");
       setMaxPlayers("4");
       setOpen(false);
@@ -184,29 +201,34 @@ export function AddGameForm() {
         </div>
       </div>
 
-      {/* Laagste score wint */}
-      <div className="flex items-center justify-between">
-        <label htmlFor="game-lowest-wins" className="text-sm font-bold">
-          Laagste score wint
-          <span className="block text-xs font-semibold mt-0.5" style={{ color: "var(--muted-foreground)" }}>
-            bijv. golf, Uno
-          </span>
-        </label>
-        <button
+      <RoundFormatPicker
+        idPrefix="game"
+        format={roundFormat}
+        onFormatChange={setRoundFormat}
+        count={roundCount}
+        onCountChange={setRoundCount}
+        target={roundTarget}
+        onTargetChange={setRoundTarget}
+      />
+
+      {/* Zie edit-game-form: bij "rondes met een winnaar" bestaat deze keuze niet. */}
+      {roundFormat !== "winnaar" && (
+        <SettingToggle
           id="game-lowest-wins"
-          type="button"
-          role="switch"
-          aria-checked={lowestScoreWins}
-          onClick={() => setLowestScoreWins((v) => !v)}
-          className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer"
-          style={{ backgroundColor: lowestScoreWins ? "var(--color-coral)" : "var(--border)" }}
-        >
-          <span
-            className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
-            style={{ transform: lowestScoreWins ? "translateX(1.375rem)" : "translateX(0.125rem)" }}
-          />
-        </button>
-      </div>
+          label="Laagste score wint"
+          hint="bijv. golf, Uno"
+          checked={lowestScoreWins}
+          onChange={setLowestScoreWins}
+        />
+      )}
+
+      <SettingToggle
+        id="game-starter-matters"
+        label="Wie begint maakt uit"
+        hint="uit bij bijv. Take 5 — de beginner-stap vervalt dan"
+        checked={starterMatters}
+        onChange={setStarterMatters}
+      />
 
       {/* Aantal spelers */}
       <div className="space-y-1">
