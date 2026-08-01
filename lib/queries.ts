@@ -8,6 +8,7 @@ import {
 } from "@/lib/achievements";
 import { getPeriodDateRange } from "@/lib/utils";
 import { computeLeaderboard, type StatSession } from "@/lib/stats";
+import { normalizeRoundConfig, sameParticipantScores } from "@/lib/rounds";
 import {
   computeHeadToHead,
   type DuelSession,
@@ -178,7 +179,7 @@ const GAME_LIST_COLUMNS =
   // Speelregels die de wizard nodig heeft om de juiste stappen te tonen. Vergeet je ze
   // hier, dan zijn ze undefined op elk spel in de quick-log en valt alles stil terug op
   // het oude gedrag — terwijl de spelpagina (select "*") ze wél laat zien.
-  "starter_matters";
+  "starter_matters, round_format, round_count, round_target";
 
 /** Hoofdspel-velden die een variant kan erven, als embedded select. */
 const PARENT_EMBED =
@@ -359,6 +360,22 @@ export async function createSession(
       throw new Error(`Failed to save scores: ${scoresError.message}`);
   }
 
+  // Na de deelnemers, want die dragen het eindtotaal en dát is wat alle statistieken
+  // lezen. De rondes zijn de onderbouwing; input.scores moet al de som hiervan zijn.
+  // De server rekent dat niet na, net zomin als hij winner_id narekent.
+  if (input.rounds && input.rounds.length > 0) {
+    const { error: roundsError } = await supabase.from("session_rounds").insert(
+      input.rounds.map((r) => ({
+        session_id: sessionId,
+        round_number: r.round_number,
+        player_id: r.player_id,
+        score: r.score ?? null,
+      }))
+    );
+    if (roundsError)
+      throw new Error(`Failed to save rounds: ${roundsError.message}`);
+  }
+
   return { id: sessionId };
 }
 
@@ -367,7 +384,9 @@ export async function createGame(input: CreateGameInput): Promise<Game> {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("games")
-    .insert(input)
+    // Normaliseren op het schrijfpad, niet in het Zod-schema: een .superRefine zou
+    // createGameSchema.partial() slopen, en daar leunt de PUT-route op.
+    .insert(normalizeRoundConfig(input))
     .select()
     .single();
   if (error) throw new Error(`Failed to create game: ${error.message}`);
@@ -400,7 +419,7 @@ export async function updateGame(
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("games")
-    .update(input)
+    .update(normalizeRoundConfig(input))
     .eq("id", id)
     .select()
     .single();
@@ -1294,18 +1313,40 @@ export async function updateSession(
       );
     }
 
-    // Delete existing scores and re-insert
-    const { error: deleteError } = await supabase
+    // Alleen herschrijven als er echt iets verandert. /history stuurt bij ELKE opslag de
+    // volledige deelnemersset mee, ook als je alleen de notitie aanpaste; zonder deze
+    // check zou dat de rondes weggooien en de session_players-id's vernieuwen.
+    const { data: current } = await supabase
       .from("session_players")
-      .delete()
+      .select("player_id, score")
       .eq("session_id", id);
-    if (deleteError) throw new Error(`Failed to delete scores: ${deleteError.message}`);
 
-    if (input.scores.length > 0) {
+    const unchanged = sameParticipantScores(
+      (current ?? []) as Array<{ player_id: string; score: number | null }>,
+      input.scores
+    );
+
+    if (!unchanged) {
+      // Delete existing scores and re-insert
+      const { error: deleteError } = await supabase
+        .from("session_players")
+        .delete()
+        .eq("session_id", id);
+      if (deleteError) throw new Error(`Failed to delete scores: ${deleteError.message}`);
+
       const { error: insertError } = await supabase
         .from("session_players")
         .insert(input.scores.map((s) => ({ session_id: id, player_id: s.player_id, score: s.score ?? null })));
       if (insertError) throw new Error(`Failed to insert scores: ${insertError.message}`);
+
+      // De rondes horen bij de totalen. Wordt een totaal met de hand gecorrigeerd, dan
+      // tellen de opgeslagen rondes niet meer op tot het getal erboven. Liever weg dan
+      // een rondetabel die iets anders beweert.
+      const { error: roundsError } = await supabase
+        .from("session_rounds")
+        .delete()
+        .eq("session_id", id);
+      if (roundsError) throw new Error(`Failed to delete rounds: ${roundsError.message}`);
     }
   }
 }
@@ -1315,6 +1356,7 @@ export async function deleteSession(id: string): Promise<void> {
   const supabase = createServerClient();
   // Delete session_players first (in case no cascade)
   await supabase.from("session_players").delete().eq("session_id", id);
+  await supabase.from("session_rounds").delete().eq("session_id", id);
   const { error } = await supabase.from("game_sessions").delete().eq("id", id);
   if (error) throw new Error(`Failed to delete session: ${error.message}`);
 }

@@ -44,6 +44,13 @@ export type UpdatePlayerInput = z.infer<typeof updatePlayerSchema>;
 export const textSourceSchema = z.enum(["seed", "bgg", "claude", "handmatig"]);
 export type TextSource = z.infer<typeof textSourceSchema>;
 
+/**
+ * Rondevormen (migratie 014). Spiegelt games_round_format_check, zoals
+ * gameCategorySchema de enum game_category spiegelt. De betekenis van elke waarde staat
+ * bij ROUND_FORMAT_LABELS in lib/rounds.ts.
+ */
+export const roundFormatSchema = z.enum(["geen", "vast", "grens", "vrij", "winnaar"]);
+
 export const gameSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -59,6 +66,11 @@ export const gameSchema = z.object({
   // Maakt het uit wie begint? False = de wizard slaat "Wie begon?" over en de
   // spelpagina laat het Beginnersvoordeel weg (migratie 013).
   starter_matters: z.boolean().optional().default(true),
+  // Rondevorm (migratie 014). round_count hoort bij 'vast', round_target bij 'grens';
+  // normalizeRoundConfig in lib/rounds.ts nult het veld dat er niet bij hoort.
+  round_format: roundFormatSchema.optional().default("geen"),
+  round_count: z.number().int().min(1).max(50).nullable().optional(),
+  round_target: z.number().int().positive().nullable().optional(),
   // Metadata (migratie 010). Allemaal nullable: bestaande rijen hebben niets.
   bgg_id: z.number().int().nullable().optional(),
   image_url: z.string().nullable().optional(),
@@ -132,6 +144,24 @@ export const createSessionSchema = z.object({
       })
     )
     .optional(),
+  /**
+   * Rondescores, plat — exact de rijvorm van session_rounds, zodat createSession ze
+   * één-op-één kan inserten.
+   *
+   * `scores` hierboven moet al de SOM hiervan zijn: dat blijft het eindtotaal en dat is
+   * wat alle statistieken lezen. De server rekent het niet na, net zomin als hij
+   * winner_id narekent.
+   */
+  rounds: z
+    .array(
+      z.object({
+        round_number: z.number().int().min(1).max(100),
+        player_id: z.string().uuid(),
+        score: z.number().int().nullable(),
+      })
+    )
+    .max(500)
+    .optional(),
 });
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 
@@ -146,7 +176,14 @@ export const createGameSchema = z.object({
   // Hoort hier en niet bij de metadata: dit is een speelregel die de gebruiker zelf
   // instelt in het spelformulier, net als lowest_score_wins.
   starter_matters: z.boolean().optional().default(true),
+  round_format: roundFormatSchema.optional().default("geen"),
+  round_count: z.number().int().min(1).max(50).nullable().optional(),
+  round_target: z.number().int().positive().nullable().optional(),
 });
+// Geen .superRefine op dit schema: in Zod v4 levert dat een wrapper zonder .partial(),
+// en de PUT-route (app/api/games/[id]/route.ts) leunt op createGameSchema.partial().
+// De samenhang tussen round_format en round_count/round_target/lowest_score_wins wordt
+// afgedwongen door normalizeRoundConfig op het schrijfpad plus een CHECK in migratie 014.
 export type CreateGameInput = z.infer<typeof createGameSchema>;
 
 // LET OP: createGameSchema is het schema voor door de gebruiker ingevulde velden.

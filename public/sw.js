@@ -17,7 +17,7 @@
 // Er zit bewust geen timeout op de navigatie-fetch: is het netwerk echt weg, dan faalt
 // fetch meteen en pakken we de cache. Een trage verbinding hoort een trage pagina te
 // geven, geen oude cijfers.
-const SW_VERSION = "v4";
+const SW_VERSION = "v5";
 
 // Geversioneerde caches: worden bij activate weggegooid zodra SW_VERSION wijzigt.
 const SHELL_CACHE = `spelscores-shell-${SW_VERSION}`;

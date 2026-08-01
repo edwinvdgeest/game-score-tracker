@@ -7,6 +7,8 @@ import { isDisplayableImageUrl } from "@/lib/game-images";
 import { apiErrorMessage } from "@/lib/utils";
 import type { Game, GameCategory } from "@/lib/schemas";
 import { SettingToggle } from "./setting-toggle";
+import { RoundFormatPicker } from "./round-format-picker";
+import { normalizeRoundConfig, type RoundFormat } from "@/lib/rounds";
 
 const categories: Array<{ value: GameCategory; label: string }> = [
   { value: "bordspel", label: "🏠 Bordspel" },
@@ -38,6 +40,13 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
   const [difficulty, setDifficulty] = useState<number | null>(game.difficulty ?? null);
   const [lowestScoreWins, setLowestScoreWins] = useState(game.lowest_score_wins ?? false);
   const [starterMatters, setStarterMatters] = useState(game.starter_matters ?? true);
+  const [roundFormat, setRoundFormat] = useState<RoundFormat>(game.round_format ?? "geen");
+  const [roundCount, setRoundCount] = useState(
+    game.round_count != null ? String(game.round_count) : ""
+  );
+  const [roundTarget, setRoundTarget] = useState(
+    game.round_target != null ? String(game.round_target) : ""
+  );
   const [minPlayers, setMinPlayers] = useState<string>(String(game.min_players ?? 2));
   const [maxPlayers, setMaxPlayers] = useState<string>(String(game.max_players ?? 4));
   const [imageUrl, setImageUrl] = useState(game.image_url ?? "");
@@ -69,16 +78,23 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
       const response = await fetch(`/api/games/${game.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          emoji,
-          category,
-          difficulty: difficulty ?? null,
-          min_players: parseInt(minPlayers, 10) || 2,
-          max_players: parseInt(maxPlayers, 10) || 4,
-          lowest_score_wins: lowestScoreWins,
-          starter_matters: starterMatters,
-        }),
+        body: JSON.stringify(
+          // normalizeRoundConfig nult het rondeveld dat niet bij de gekozen vorm hoort
+          // en zet lowest_score_wins uit bij 'winnaar'.
+          normalizeRoundConfig({
+            name: name.trim(),
+            emoji,
+            category,
+            difficulty: difficulty ?? null,
+            min_players: parseInt(minPlayers, 10) || 2,
+            max_players: parseInt(maxPlayers, 10) || 4,
+            lowest_score_wins: lowestScoreWins,
+            starter_matters: starterMatters,
+            round_format: roundFormat,
+            round_count: parseInt(roundCount, 10) || null,
+            round_target: parseInt(roundTarget, 10) || null,
+          })
+        ),
       });
 
       if (!response.ok) throw new Error(await apiErrorMessage(response));
@@ -244,13 +260,27 @@ export function EditGameForm({ game, onClose }: EditGameFormProps) {
         </div>
       </div>
 
-      <SettingToggle
-        id="edit-lowest-wins"
-        label="Laagste score wint"
-        hint="bijv. golf, Uno"
-        checked={lowestScoreWins}
-        onChange={setLowestScoreWins}
+      <RoundFormatPicker
+        idPrefix="edit"
+        format={roundFormat}
+        onFormatChange={setRoundFormat}
+        count={roundCount}
+        onCountChange={setRoundCount}
+        target={roundTarget}
+        onTargetChange={setRoundTarget}
       />
+
+      {/* Bij "rondes met een winnaar" is de score het aantal gewonnen rondes; laagste
+          wint zou de winnaar omdraaien, dus die keuze bestaat daar niet. */}
+      {roundFormat !== "winnaar" && (
+        <SettingToggle
+          id="edit-lowest-wins"
+          label="Laagste score wint"
+          hint="bijv. golf, Uno"
+          checked={lowestScoreWins}
+          onChange={setLowestScoreWins}
+        />
+      )}
 
       <SettingToggle
         id="edit-starter-matters"

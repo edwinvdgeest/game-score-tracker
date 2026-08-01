@@ -13,12 +13,14 @@ import type {
 import { GameGrid } from "./game-grid";
 import { StarterPicker } from "./starter-picker";
 import { ScoreEntry } from "./score-entry";
+import { RoundEntry } from "./round-entry";
 import { HypeCard } from "./hype-card";
 import { WinnerHighlights } from "./winner-highlights";
 import { BadgeUnlock } from "./badge-unlock";
 import { FinalScores } from "./final-scores";
 import { cn } from "@/lib/utils";
 import { computeWinner, parseScoreEntries } from "@/lib/stats";
+import { parseRoundEntries, roundConfigOf, sumRounds, usesRounds } from "@/lib/rounds";
 import { jsonFetcher } from "@/lib/hooks/fetcher";
 import { formatShareText, shareResult } from "@/lib/share";
 import { toast } from "sonner";
@@ -82,6 +84,8 @@ export function SessionForm({
   const [selectedGame, setSelectedGame] = useState<Game | null>(preselectedGame);
   const [selectedStarter, setSelectedStarter] = useState<Player | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
+  /** Rondes bij een rondespel: roundScores[i] is ronde i+1, per speler-id de ruwe tekst. */
+  const [roundScores, setRoundScores] = useState<Array<Record<string, string>>>([]);
   const [duration, setDuration] = useState<number | null>(null);
   const [note, setNote] = useState("");
   const [showConfetti, setShowConfetti] = useState(false);
@@ -155,7 +159,7 @@ export function SessionForm({
 
   // Pre-game hype: streak, h2h, starter-voordeel, spel-koning
   const hypeKey =
-    step === "scores" && selectedGame && playerIdsKey
+    (step === "scores" || step === "rounds") && selectedGame && playerIdsKey
       ? `/api/pre-game?game_id=${selectedGame.id}&player_ids=${playerIdsKey}${
           selectedStarter ? `&starter_id=${selectedStarter.id}` : ""
         }`
@@ -197,21 +201,31 @@ export function SessionForm({
     setStep(stepAfterGame(game));
   }, []);
 
-  const handleStarterSelect = useCallback((player: Player) => {
-    setSelectedStarter(player);
-    setStep("scores");
-  }, []);
+  /** Na de beginner komt de invoerstap: losse scores, of het rondescherm. */
+  const stepAfterStarter = useCallback(
+    () => nextStep(stepsFor(selectedGame), "starter") ?? "scores",
+    [selectedGame]
+  );
+
+  const handleStarterSelect = useCallback(
+    (player: Player) => {
+      setSelectedStarter(player);
+      setStep(stepAfterStarter());
+    },
+    [stepAfterStarter]
+  );
 
   const handleStarterSkip = useCallback(() => {
     setSelectedStarter(null);
-    setStep("scores");
-  }, []);
+    setStep(stepAfterStarter());
+  }, [stepAfterStarter]);
 
   const resetForm = useCallback(() => {
     setStep("game");
     setSelectedGame(null);
     setSelectedStarter(null);
     setScores({});
+    setRoundScores([]);
     setDuration(null);
     setNote("");
     setWinner(undefined);
@@ -248,6 +262,7 @@ export function SessionForm({
     setStep(stepAfterGame(gamePick.game));
     setSelectedStarter(null);
     setScores({});
+    setRoundScores([]);
     setWinner(undefined);
     setSavedSessionId(null);
     setSecondsLeft(null);
@@ -271,11 +286,17 @@ export function SessionForm({
       if (!selectedGame) return;
       setSaving(true);
 
-      // Eén keer parsen, en dezelfde array gaat naar computeWinner en naar de API.
-      const scoresArray = parseScoreEntries(
-        activePlayers.map((p) => p.id),
-        scoreValues
-      );
+      const playerIds = activePlayers.map((p) => p.id);
+
+      // Twee wegen naar dezelfde array: een rondespel telt de rondes op, de rest leest
+      // de losse invoervelden. Vanaf hier is er geen verschil meer — het eindtotaal is
+      // wat er in session_players.score belandt en wat alle statistieken lezen.
+      const roundEntries = usesRounds(selectedGame)
+        ? parseRoundEntries(playerIds, roundScores)
+        : [];
+      const scoresArray = usesRounds(selectedGame)
+        ? sumRounds(playerIds, roundEntries)
+        : parseScoreEntries(playerIds, scoreValues);
       const winnerId = computeWinner(
         scoresArray,
         selectedGame.lowest_score_wins ?? false
@@ -293,6 +314,7 @@ export function SessionForm({
             winner_id: computedWinner?.id ?? null,
             starter_id: selectedStarter?.id ?? null,
             scores: scoresArray,
+            rounds: roundEntries.length > 0 ? roundEntries : undefined,
             marathon_id: marathon?.id ?? null,
             duration_minutes: duration ?? null,
             notes: note.trim() || null,
@@ -335,15 +357,30 @@ export function SessionForm({
         setSaving(false);
       }
     },
-    [selectedGame, selectedStarter, activePlayers, marathon, duration, note]
+    [selectedGame, selectedStarter, activePlayers, marathon, duration, note, roundScores]
   );
+
+  /**
+   * De scores zoals het eindscherm ze toont.
+   *
+   * Bij een rondespel staat er niets in `scores` — daar zijn de totalen de som van de
+   * rondes. Zonder deze afleiding zou het winnaarsscherm lege scores laten zien.
+   */
+  const displayScores = useMemo(() => {
+    if (!usesRounds(selectedGame)) return scores;
+    const playerIds = activePlayers.map((p) => p.id);
+    const totals = sumRounds(playerIds, parseRoundEntries(playerIds, roundScores));
+    return Object.fromEntries(
+      totals.map((entry) => [entry.player_id, entry.score === null ? "" : String(entry.score)])
+    );
+  }, [selectedGame, scores, activePlayers, roundScores]);
 
   /** Uitslag delen: share sheet op de telefoon, klembord op de desktop. */
   const handleShare = useCallback(async () => {
     if (!selectedGame) return;
     const parsed = parseScoreEntries(
       activePlayers.map((p) => p.id),
-      scores
+      displayScores
     );
     const text = formatShareText({
       game: { name: selectedGame.name, emoji: selectedGame.emoji },
@@ -360,7 +397,7 @@ export function SessionForm({
     const outcome = await shareResult(text);
     if (outcome === "copied") toast.success("📋 Uitslag gekopieerd");
     if (outcome === "failed") toast.error("Delen lukte niet op dit apparaat.");
-  }, [selectedGame, activePlayers, scores, winner]);
+  }, [selectedGame, activePlayers, displayScores, winner]);
 
   const handleScoreChange = useCallback((playerId: string, value: string) => {
     setScores((prev) => ({ ...prev, [playerId]: value }));
@@ -371,7 +408,7 @@ export function SessionForm({
     if (!previous) return;
     // Een stap terug maakt ook ongedaan wat je op de stap die je verlaat gekozen had.
     if (step === "starter") setSelectedGame(null);
-    if (step === "scores") setSelectedStarter(null);
+    if (step === "scores" || step === "rounds") setSelectedStarter(null);
     if (previous === "game") setSelectedGame(null);
     setStep(previous);
   }, [steps, step]);
@@ -441,7 +478,7 @@ export function SessionForm({
 
         <FinalScores
           players={activePlayers}
-          scores={scores}
+          scores={displayScores}
           winnerId={winner?.id ?? null}
           lowestScoreWins={selectedGame.lowest_score_wins ?? false}
         />
@@ -696,7 +733,7 @@ export function SessionForm({
         </>
       )}
 
-      {step === "scores" && (
+      {(step === "scores" || step === "rounds") && (
         <>
           <div className="flex items-center gap-2">
             <button
@@ -715,18 +752,34 @@ export function SessionForm({
             </button>
           </div>
           <HypeCard facts={hypeData?.facts ?? []} />
-          <ScoreEntry
-            players={activePlayers}
-            scores={scores}
-            onChange={handleScoreChange}
-            onSave={() => void handleSave(scores)}
-            saving={saving}
-            duration={duration}
-            onDurationChange={setDuration}
-            note={note}
-            onNoteChange={setNote}
-            lowestScoreWins={selectedGame?.lowest_score_wins ?? false}
-          />
+          {step === "rounds" ? (
+            <RoundEntry
+              players={activePlayers}
+              config={roundConfigOf(selectedGame)}
+              lowestScoreWins={selectedGame?.lowest_score_wins ?? false}
+              rounds={roundScores}
+              onRoundsChange={setRoundScores}
+              onSave={() => void handleSave(scores)}
+              saving={saving}
+              duration={duration}
+              onDurationChange={setDuration}
+              note={note}
+              onNoteChange={setNote}
+            />
+          ) : (
+            <ScoreEntry
+              players={activePlayers}
+              scores={scores}
+              onChange={handleScoreChange}
+              onSave={() => void handleSave(scores)}
+              saving={saving}
+              duration={duration}
+              onDurationChange={setDuration}
+              note={note}
+              onNoteChange={setNote}
+              lowestScoreWins={selectedGame?.lowest_score_wins ?? false}
+            />
+          )}
         </>
       )}
     </div>

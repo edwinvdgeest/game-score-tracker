@@ -1,4 +1,5 @@
 import type { Game } from "@/lib/schemas";
+import { usesRounds } from "@/lib/rounds";
 
 /**
  * De stappen van de quick-log-wizard.
@@ -6,7 +7,7 @@ import type { Game } from "@/lib/schemas";
  * "done" hoort er bewust niet bij: dat is het eindscherm en geen stap waar je naartoe
  * navigeert of die een bolletje in de voortgangsbalk krijgt.
  */
-export type Step = "game" | "starter" | "scores" | "done";
+export type Step = "game" | "starter" | "scores" | "rounds" | "done";
 
 /** Alle stappen behalve het eindscherm — de dingen die je daadwerkelijk invult. */
 export type FormStep = Exclude<Step, "done">;
@@ -28,7 +29,9 @@ export function stepsFor(game: Game | null): FormStep[] {
   // ?? true: een spel uit een cache van vóór migratie 013 heeft de kolom nog niet, en
   // dan is het oude gedrag (mét beginner-stap) het juiste antwoord.
   if (game.starter_matters ?? true) steps.push("starter");
-  steps.push("scores");
+  // Rondespellen krijgen het rondescherm in plaats van de losse score-invoer: het is
+  // dezelfde plek in de wizard, alleen een andere manier om er een totaal in te krijgen.
+  steps.push(usesRounds(game) ? "rounds" : "scores");
   return steps;
 }
 

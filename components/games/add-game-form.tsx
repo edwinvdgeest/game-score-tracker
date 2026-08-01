@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { apiErrorMessage } from "@/lib/utils";
 import type { GameCategory } from "@/lib/schemas";
 import { SettingToggle } from "./setting-toggle";
+import { RoundFormatPicker } from "./round-format-picker";
+import { normalizeRoundConfig, type RoundFormat } from "@/lib/rounds";
 
 const categories: Array<{ value: GameCategory; label: string }> = [
   { value: "bordspel", label: "🏠 Bordspel" },
@@ -42,6 +44,9 @@ export function AddGameForm() {
   const [difficulty, setDifficulty] = useState<number | null>(null);
   const [lowestScoreWins, setLowestScoreWins] = useState(false);
   const [starterMatters, setStarterMatters] = useState(true);
+  const [roundFormat, setRoundFormat] = useState<RoundFormat>("geen");
+  const [roundCount, setRoundCount] = useState("");
+  const [roundTarget, setRoundTarget] = useState("");
   const [minPlayers, setMinPlayers] = useState<string>("2");
   const [maxPlayers, setMaxPlayers] = useState<string>("4");
 
@@ -54,16 +59,21 @@ export function AddGameForm() {
       const response = await fetch("/api/games", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          emoji,
-          category,
-          difficulty: difficulty ?? null,
-          min_players: parseInt(minPlayers, 10) || 2,
-          max_players: parseInt(maxPlayers, 10) || 4,
-          lowest_score_wins: lowestScoreWins,
-          starter_matters: starterMatters,
-        }),
+        body: JSON.stringify(
+          normalizeRoundConfig({
+            name: name.trim(),
+            emoji,
+            category,
+            difficulty: difficulty ?? null,
+            min_players: parseInt(minPlayers, 10) || 2,
+            max_players: parseInt(maxPlayers, 10) || 4,
+            lowest_score_wins: lowestScoreWins,
+            starter_matters: starterMatters,
+            round_format: roundFormat,
+            round_count: parseInt(roundCount, 10) || null,
+            round_target: parseInt(roundTarget, 10) || null,
+          })
+        ),
       });
 
       if (!response.ok) {
@@ -78,6 +88,9 @@ export function AddGameForm() {
       setDifficulty(null);
       setLowestScoreWins(false);
       setStarterMatters(true);
+      setRoundFormat("geen");
+      setRoundCount("");
+      setRoundTarget("");
       setMinPlayers("2");
       setMaxPlayers("4");
       setOpen(false);
@@ -188,13 +201,26 @@ export function AddGameForm() {
         </div>
       </div>
 
-      <SettingToggle
-        id="game-lowest-wins"
-        label="Laagste score wint"
-        hint="bijv. golf, Uno"
-        checked={lowestScoreWins}
-        onChange={setLowestScoreWins}
+      <RoundFormatPicker
+        idPrefix="game"
+        format={roundFormat}
+        onFormatChange={setRoundFormat}
+        count={roundCount}
+        onCountChange={setRoundCount}
+        target={roundTarget}
+        onTargetChange={setRoundTarget}
       />
+
+      {/* Zie edit-game-form: bij "rondes met een winnaar" bestaat deze keuze niet. */}
+      {roundFormat !== "winnaar" && (
+        <SettingToggle
+          id="game-lowest-wins"
+          label="Laagste score wint"
+          hint="bijv. golf, Uno"
+          checked={lowestScoreWins}
+          onChange={setLowestScoreWins}
+        />
+      )}
 
       <SettingToggle
         id="game-starter-matters"
