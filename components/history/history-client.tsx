@@ -8,6 +8,7 @@ import type { SessionDetail } from "@/lib/queries";
 import type { Player } from "@/lib/schemas";
 import { computeWinner, parseScoreEntries } from "@/lib/stats";
 import { formatDate } from "@/lib/utils";
+import { SessionRounds } from "./session-rounds";
 
 interface HistoryClientProps {
   sessions: SessionDetail[];
@@ -255,6 +256,15 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
             </div>
           )}
 
+          {/* Rondeverloop — alleen als er rondes opgeslagen zijn bij dit potje */}
+          {(session.rounds?.[0]?.count ?? 0) > 0 && (
+            <SessionRounds
+              sessionId={session.id}
+              players={session.scores.map((entry) => entry.player)}
+              winnerFormat={session.game.round_format === "winnaar"}
+            />
+          )}
+
           {/* Notitie */}
           {session.notes && (
             <div
@@ -282,6 +292,15 @@ export function HistoryClient({ sessions, players }: HistoryClientProps) {
                       </span>
                     )}
                   </label>
+                  {(session.rounds?.[0]?.count ?? 0) > 0 && (
+                    <p
+                      className="text-xs font-semibold italic"
+                      style={{ color: "var(--muted-foreground)" }}
+                    >
+                      Let op: het opgeslagen rondeverloop vervalt zodra je hier een score
+                      aanpast — de rondes zouden dan niet meer optellen tot het totaal.
+                    </p>
+                  )}
                   {editParticipants.map((p) => (
                     <div key={p.id} className="flex items-center gap-2">
                       <span className="text-lg w-6 text-center">{p.emoji}</span>

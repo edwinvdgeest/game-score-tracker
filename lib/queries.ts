@@ -583,6 +583,15 @@ export type SessionDetail = {
   winner: Player | null;
   /** Deelnemers met hun score. Nodig om een score in /history te kunnen corrigeren. */
   scores: Array<{ player: Player; score: number | null }>;
+  /**
+   * Hoeveel rijen er in session_rounds staan — alleen een telling, want dit antwoord
+   * gaat over álle sessies en wordt door de service worker gecachet. De rondes zelf
+   * komen pas los binnen via /api/sessions/[id]/rounds als je ze uitklapt.
+   *
+   * Niet af te leiden uit game.round_format: een oud potje van een spel dat pas later
+   * op rondes is gezet heeft er geen.
+   */
+  rounds: Array<{ count: number }>;
 };
 
 /** Fetch all sessions ordered by played_at desc */
@@ -591,7 +600,7 @@ export async function getAllSessions(): Promise<SessionDetail[]> {
   const { data, error } = await supabase
     .from("game_sessions")
     .select(
-      "id, played_at, day_of_week, winner_id, starter_id, notes, game:games(*), winner:players!winner_id(*), scores:session_players(player:players(*), score)"
+      "id, played_at, day_of_week, winner_id, starter_id, notes, game:games(*), winner:players!winner_id(*), scores:session_players(player:players(*), score), rounds:session_rounds(count)"
     )
     .order("played_at", { ascending: false });
   if (error) throw new Error(`Failed to fetch sessions: ${error.message}`);
@@ -1276,6 +1285,31 @@ export async function getGameRecap(gameId: string): Promise<GameRecap | null> {
   const players = (playersResult.data ?? []) as unknown as SpotlightPlayer[];
 
   return computeGameRecap(sessions, game, players);
+}
+
+/** Eén ronde van een sessie, zoals /history hem toont. */
+export type SessionRoundDetail = {
+  round_number: number;
+  player_id: string;
+  score: number | null;
+};
+
+/**
+ * De rondes van één sessie, oplopend genummerd.
+ *
+ * Bewust een aparte query en geen embed in getAllSessions: dát antwoord gaat over alle
+ * sessies en wordt gecachet, en een paar honderd potjes met tien rondes zou daar een
+ * veelvoud aan rijen in duwen die je bijna nooit uitklapt.
+ */
+export async function getSessionRounds(sessionId: string): Promise<SessionRoundDetail[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("session_rounds")
+    .select("round_number, player_id, score")
+    .eq("session_id", sessionId)
+    .order("round_number");
+  if (error) throw new Error(`Failed to fetch rounds: ${error.message}`);
+  return (data ?? []) as SessionRoundDetail[];
 }
 
 /** Update an existing session */

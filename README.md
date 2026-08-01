@@ -93,6 +93,44 @@ doosfoto en tekst. Eén URL bij Qwixx dekt dus meteen alle Qwixx-scorebladen.
 > aanroep gaf 401. De Nederlandse teksten uit migratie 011 en de variant-overerving
 > staan daar los van en werken gewoon.
 
+## Beginner en rondes per spel
+
+Twee speelregels staan per spel ingesteld, via **Spellen → Bewerken ✏️**.
+
+**Wie begint maakt uit.** Standaard aan. Zet je hem uit — bij Take 5 wordt gewoon gedeeld,
+dus wie begint zegt niets — dan slaat de quick-log de stap "Wie begon?" over (twee stappen
+in plaats van drie), verdwijnt het Beginnersvoordeel van de spelpagina en is het
+beginner-veld in de historie weg.
+
+**Rondes.** Vijf vormen:
+
+| Vorm | Wat het doet |
+|------|-------------|
+| Geen rondes | Zoals altijd: één eindscore per speler |
+| Vast aantal rondes | Bijv. Skull King met 10; je vult per ronde in, het totaal is de som |
+| Spelen tot een grens | Bijv. Take 5 tot 66; de app meldt zelf wanneer iemand de grens haalt |
+| Vrij aantal rondes | Zoveel als je wil, je drukt zelf op klaar |
+| Rondes met een winnaar | Geen punten; wie de meeste rondes wint, wint het potje |
+
+Een eerdere ronde corrigeer je door hem in de lijst "Gespeelde rondes" aan te tikken; het
+🗑️ ernaast gooit hem weg en hernummert de rest. Bij "tot een grens" kun je na de melding
+alsnog "Toch nog een ronde" kiezen, voor groepen die de ronde uitspelen.
+
+> **De invariant.** `session_players.score` blijft het eindtotaal en
+> `game_sessions.winner_id` blijft de winnaar; `session_rounds` is alleen de onderbouwing.
+> Daarom weten het leaderboard, de badges, de duel-pagina, de spotlight, de seizoenen, het
+> jaaroverzicht en de marathon niets van rondes en hoefden ze niet mee te veranderen. Laat
+> nooit een statistiek rechtstreeks op `session_rounds` rekenen.
+>
+> Gevolg daarvan: pas je in **Historie** een totaal met de hand aan, dan worden de rondes
+> van dat potje weggegooid. Ze zouden anders optellen tot iets anders dan het getal
+> erboven. Het bewerkformulier waarschuwt daarvoor.
+
+Bij "rondes met een winnaar" is de rondewinnaar een score van 1 en de rest 0, dus het
+totaal is het aantal gewonnen rondes. Die vorm sluit "laagste score wint" uit — anders zou
+de speler met de mínste rondes winnen — en de schakelaar verdwijnt dan ook uit het
+formulier.
+
 ## Tests
 
 De rekenlogica in `lib/` is getest met Vitest op verzonnen sessies — geen database nodig.
@@ -106,15 +144,18 @@ npm run lint
 ```
 
 Getest worden de badge-logica (`lib/achievements.ts`), de statistiekberekeningen
-(`lib/stats.ts`), de spotlight-kaarten en -voorkeuren (`lib/spotlight.ts`,
+(`lib/stats.ts`), de rondelogica (`lib/rounds.ts`), de wizard-stappen
+(`lib/wizard-steps.ts`), de spotlight-kaarten en -voorkeuren (`lib/spotlight.ts`,
 `lib/spotlight-prefs.ts`), de deeltekst (`lib/share.ts`) en de datum- en reeks-helpers
 (`lib/utils.ts`). Query-functies die Supabase aanroepen worden niet getest: die bevatten alleen
 kolomselectie, de berekeningen zijn er bewust uitgetild.
 
 Een paar componenten worden wel getest, omdat daar gedrag in zit en geen opmaak:
 `components/home/spotlight-carousel.test.tsx` (bladeren, "minder van dit", startkaart),
-`components/home/home-client.test.tsx` ("Nog eens?" zet het spel in het formulier) en
-`components/quick-log/game-grid.test.tsx` (het bezettingsfilter). Ze draaien in jsdom via
+`components/home/home-client.test.tsx` ("Nog eens?" zet het spel in het formulier, en slaat
+de beginnersvraag over waar dat hoort), `components/quick-log/game-grid.test.tsx` (het
+bezettingsfilter) en `components/quick-log/round-entry.test.tsx` (rondes invullen,
+einde-detectie bij een grens, een ronde corrigeren of verwijderen). Ze draaien in jsdom via
 `// @vitest-environment jsdom` bovenaan het bestand.
 
 ## De spotlight op de homepage
