@@ -319,10 +319,15 @@ export async function getGamesSortedByRecent(): Promise<Game[]> {
   });
 }
 
-/** Create a new game session. Returns the new session id so the client can fetch highlights. */
+/**
+ * Create a new game session. Returns the new session id so the client can fetch highlights.
+ *
+ * `roundsWarning` is gezet als het potje wél is opgeslagen maar het rondedetail niet.
+ * Zie het rondeblok onderaan voor waarom dat geen harde fout is.
+ */
 export async function createSession(
   input: CreateSessionInput
-): Promise<{ id: string }> {
+): Promise<{ id: string; roundsWarning?: string }> {
   const supabase = createServerClient();
   const playedAt = input.played_at ?? new Date().toISOString();
   const dayOfWeek = new Date(playedAt).getDay();
@@ -363,6 +368,13 @@ export async function createSession(
   // Na de deelnemers, want die dragen het eindtotaal en dát is wat alle statistieken
   // lezen. De rondes zijn de onderbouwing; input.scores moet al de som hiervan zijn.
   // De server rekent dat niet na, net zomin als hij winner_id narekent.
+  //
+  // Mislukt deze insert, dan gooien we NIET. supabase-js kent geen transactie over
+  // meerdere requests, dus de sessie en de deelnemers staan er op dit punt al. Een
+  // fout teruggeven zou de speler een mislukking melden die niet klopt, en bij een
+  // tweede poging krijg je het potje dubbel. Het potje is wat telt; het rondedetail
+  // is bijzaak. Dus: potje behouden, en eerlijk melden wat er niet gelukt is.
+  let roundsWarning: string | undefined;
   if (input.rounds && input.rounds.length > 0) {
     const { error: roundsError } = await supabase.from("session_rounds").insert(
       input.rounds.map((r) => ({
@@ -372,11 +384,15 @@ export async function createSession(
         score: r.score ?? null,
       }))
     );
-    if (roundsError)
-      throw new Error(`Failed to save rounds: ${roundsError.message}`);
+    if (roundsError) {
+      roundsWarning = roundsError.message;
+      console.error(
+        `Sessie ${sessionId} opgeslagen, maar het rondedetail niet: ${roundsError.message}`
+      );
+    }
   }
 
-  return { id: sessionId };
+  return { id: sessionId, roundsWarning };
 }
 
 /** Create a new game */

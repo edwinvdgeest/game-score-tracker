@@ -67,3 +67,18 @@ CREATE TABLE IF NOT EXISTS session_rounds (
   -- Dekt meteen de enige query die er is: WHERE session_id = ? ORDER BY round_number.
   UNIQUE (session_id, round_number, player_id)
 );
+
+-- Toegang gelijktrekken met de bestaande tabellen. De app praat met de ANON key
+-- (zie lib/supabase/server.ts), en geen enkele tabel in dit project gebruikt RLS.
+-- Staat RLS wél aan op deze tabel — dat gebeurt automatisch als je hem via de Table
+-- Editor aanmaakt in plaats van via de SQL Editor — dan falen de inserts met "new row
+-- violates row-level security policy" en kun je een potje met rondes niet opslaan.
+-- Deze twee regels zijn een no-op als alles al goed staat.
+ALTER TABLE session_rounds DISABLE ROW LEVEL SECURITY;
+GRANT ALL ON TABLE session_rounds TO anon, authenticated, service_role;
+
+-- PostgREST (de REST-laag waar supabase-js op praat) houdt een schema-cache bij. Een
+-- vers aangemaakte tabel zit daar soms nog niet in, en dan krijg je
+-- "Could not find the table 'public.session_rounds' in the schema cache" — óók als de
+-- tabel er gewoon staat. Dit duwt de cache meteen bij.
+NOTIFY pgrst, 'reload schema';

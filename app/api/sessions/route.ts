@@ -19,8 +19,9 @@ export async function POST(request: Request) {
   try {
     const body: unknown = await request.json();
     const input = createSessionSchema.parse(body);
-    const { id } = await createSession(input);
-    return NextResponse.json({ success: true, id }, { status: 201 });
+    const { id, roundsWarning } = await createSession(input);
+    // 201, ook met een roundsWarning: het potje staat er, alleen het rondedetail niet.
+    return NextResponse.json({ success: true, id, roundsWarning }, { status: 201 });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: "Ongeldige invoer" }, { status: 400 });

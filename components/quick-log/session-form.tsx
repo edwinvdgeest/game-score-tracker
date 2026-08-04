@@ -18,7 +18,7 @@ import { HypeCard } from "./hype-card";
 import { WinnerHighlights } from "./winner-highlights";
 import { BadgeUnlock } from "./badge-unlock";
 import { FinalScores } from "./final-scores";
-import { cn } from "@/lib/utils";
+import { apiErrorMessage, cn } from "@/lib/utils";
 import { computeWinner, parseScoreEntries } from "@/lib/stats";
 import { parseRoundEntries, roundConfigOf, sumRounds, usesRounds } from "@/lib/rounds";
 import { jsonFetcher } from "@/lib/hooks/fetcher";
@@ -343,16 +343,27 @@ export function SessionForm({
           }),
         });
 
-        if (!response.ok) throw new Error("Opslaan mislukt");
+        // De servermelding doorgeven in plaats van weggooien: "Er ging iets mis" laat
+        // je raden, terwijl de route de echte oorzaak al meestuurt.
+        if (!response.ok) throw new Error(await apiErrorMessage(response));
 
         const json = (await response.json()) as {
           queued?: boolean;
           id?: string;
+          roundsWarning?: string;
         };
         if (json.queued) {
           toast.info("📵 Offline opgeslagen — wordt gesynchroniseerd zodra je online bent.");
         } else {
           if (json.id) setSavedSessionId(json.id);
+          // Het potje staat er, alleen het rondeverloop niet. Wel zeggen: anders zoek
+          // je je later scheel naar een rondetabel die er nooit gekomen is.
+          if (json.roundsWarning) {
+            toast.warning(
+              "Potje opgeslagen, maar het rondeverloop niet — de scores en de winnaar zijn wel bewaard."
+            );
+            console.error("Rondedetail niet opgeslagen:", json.roundsWarning);
+          }
           // Invalidate SWR caches so dashboard/history update instantly
           void mutate((key) => typeof key === "string" && key.startsWith("/api/stats"));
           void mutate("/api/sessions");
@@ -372,8 +383,12 @@ export function SessionForm({
         // Winnaar + stats blijven staan; buiten marathon telt een zichtbare
         // aftimer af die de speler kan pauzeren
         if (!marathon) setSecondsLeft(AUTO_RESET_SECONDS);
-      } catch {
-        toast.error("Oeps! Er ging iets mis. Probeer opnieuw.");
+      } catch (err) {
+        toast.error(
+          err instanceof Error && err.message
+            ? `Opslaan mislukt: ${err.message}`
+            : "Oeps! Er ging iets mis. Probeer opnieuw."
+        );
         setWinner(undefined);
       } finally {
         setSaving(false);

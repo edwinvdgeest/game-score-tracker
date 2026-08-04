@@ -132,6 +132,27 @@ rondevorm van het spel blijft gewoon staan voor de volgende keer.
 > van dat potje weggegooid. Ze zouden anders optellen tot iets anders dan het getal
 > erboven. Het bewerkformulier waarschuwt daarvoor.
 
+### Als het rondeverloop niet opgeslagen wordt
+
+Krijg je "Potje opgeslagen, maar het rondeverloop niet", dan staat het potje er gewoon —
+scores en winnaar zijn bewaard — en is alleen `session_rounds` niet gevuld. **Sla niet
+opnieuw op**, dan krijg je het potje dubbel. De echte melding staat in de console van de
+browser en in de serverlog.
+
+Bijna altijd is het de toegang tot de nieuwe tabel. Opnieuw draaien van
+`014_game_rounds.sql` repareert het (die migratie zet RLS uit, geeft de rechten aan `anon`
+en duwt de PostgREST-schema-cache bij). Nalopen kan zo:
+
+```sql
+-- Staat RLS aan waar het uit moet? (session_players is de referentie: die staat op false)
+select relname, relrowsecurity from pg_class
+where relname in ('session_players', 'session_rounds');
+
+-- Mag anon erbij?
+select grantee, privilege_type from information_schema.role_table_grants
+where table_name = 'session_rounds';
+```
+
 Bij "rondes met een winnaar" is de rondewinnaar een score van 1 en de rest 0, dus het
 totaal is het aantal gewonnen rondes. Die vorm sluit "laagste score wint" uit — anders zou
 de speler met de mínste rondes winnen — en de schakelaar verdwijnt dan ook uit het
