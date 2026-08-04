@@ -53,6 +53,18 @@ const DayOfWeekChart = dynamic(
   }
 );
 
+const ActivityHeatmap = dynamic(
+  () => import("./activity-heatmap").then((m) => ({ default: m.ActivityHeatmap })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-3xl border p-4 h-32 flex items-center justify-center text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>
+        Activiteit laden…
+      </div>
+    ),
+  }
+);
+
 interface DashboardClientProps {
   initialStats: StatsResponse;
   games: Game[];
@@ -95,6 +107,10 @@ export function DashboardClient({ initialStats, games }: DashboardClientProps) {
       {displayStats.score_highlights && (
         <ScoreHighlightsSection highlights={displayStats.score_highlights} />
       )}
+      {/* Activiteitenoverzicht — als op GitHub, altijd het hele jaar, los van de periodefilter hierboven */}
+      <LazyInView>
+        <ActivityHeatmap />
+      </LazyInView>
       {/* Op tablet: leaderboard + streaks naast elkaar, charts naast elkaar */}
       <div className="md:grid md:grid-cols-2 md:gap-6">
         <div className="space-y-6">
