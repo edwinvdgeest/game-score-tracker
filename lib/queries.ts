@@ -1,4 +1,5 @@
 import { createServerClient } from "@/lib/supabase/server";
+import { buildActivityWeeks, countSessionsByDate, type ActivityWeek } from "@/lib/activity";
 import {
   calculateAchievements,
   type Achievement,
@@ -1449,6 +1450,27 @@ export async function getDayOfWeekStats(): Promise<{
   }
 
   return { stats, players };
+}
+
+/** Aantal weken in het activiteitenoverzicht op /dashboard — net als GitHub, iets meer dan een jaar. */
+const ACTIVITY_CALENDAR_WEEKS = 53;
+
+/** GitHub-achtig activiteitenoverzicht: potjes per dag, de laatste 53 weken. */
+export async function getActivityCalendar(): Promise<{
+  weeks: ActivityWeek[];
+  maxCount: number;
+  totalSessions: number;
+}> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase.from("game_sessions").select("played_at");
+  if (error) throw new Error(error.message);
+
+  const playedAtDates = (data ?? []).map((row) => row.played_at as string);
+  const counts = countSessionsByDate(playedAtDates);
+  const { weeks, maxCount } = buildActivityWeeks(counts, new Date(), ACTIVITY_CALENDAR_WEEKS);
+  const totalSessions = weeks.flat().reduce((sum, day) => sum + day.count, 0);
+
+  return { weeks, maxCount, totalSessions };
 }
 
 /** Alle data die de badge-berekening nodig heeft, in één keer opgehaald */
