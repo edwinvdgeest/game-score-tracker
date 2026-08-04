@@ -194,7 +194,7 @@ export function GameList({ games: initialGames }: GameListProps) {
             {showArchived ? "▲ Verberg gearchiveerde spellen" : `▼ Toon gearchiveerde spellen (${archivedGames.length})`}
           </button>
           {showArchived && (
-            <div className="space-y-2 mt-2 opacity-50 md:grid md:grid-cols-2 md:gap-2 md:space-y-0">
+            <div className="space-y-2 mt-2 opacity-75 md:grid md:grid-cols-2 md:gap-2 md:space-y-0">
               {archivedGames.map((game) => (
                 <GameCard
                   key={game.id}

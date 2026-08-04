@@ -77,11 +77,11 @@ export function WrappedCard({ wrapped }: WrappedCardProps) {
         {champion && (
           <div
             className="rounded-2xl p-4 text-center"
-            style={{ backgroundColor: "var(--color-warm-yellow)" }}
+            style={{ backgroundColor: "var(--color-warm-yellow)", color: "var(--on-warm-yellow)" }}
           >
             <div className="text-5xl mb-1">{champion.player.emoji}</div>
             <div className="font-black text-lg">{champion.player.name}</div>
-            <div className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>
+            <div className="text-xs font-bold" style={{ color: "var(--on-warm-yellow-muted)" }}>
               speler van het jaar · {champion.wins} winsten ·{" "}
               {champion.win_percentage}%
             </div>

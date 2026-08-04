@@ -169,7 +169,7 @@ export function PlayersClient() {
 
       {inactive.length > 0 && (
         <PlayerSection title="Gedeactiveerd">
-          <ul className="space-y-2 opacity-60">
+          <ul className="space-y-2 opacity-75">
             {inactive.map((player) => (
               <li
                 key={player.id}
@@ -182,7 +182,7 @@ export function PlayersClient() {
                   onClick={() => void patchPlayer(player, { is_active: true })}
                   disabled={busyId === player.id}
                   className="text-xs font-bold px-3 py-1.5 rounded-xl border-2 cursor-pointer disabled:opacity-50"
-                  style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+                  style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
                 >
                   Weer activeren
                 </button>

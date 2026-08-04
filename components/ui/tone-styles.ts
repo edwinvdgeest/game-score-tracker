@@ -20,8 +20,8 @@ export const PILL_TONE_STYLES: Record<FactTone, ToneStyle> = {
     border: "color-mix(in srgb, var(--color-lavender) 40%, transparent)",
   },
   yellow: {
-    color: "#b89000",
-    bg: "color-mix(in srgb, var(--color-warm-yellow) 30%, var(--card))",
+    color: "var(--tier-gold-text)",
+    bg: "var(--tier-gold-bg)",
     border: "color-mix(in srgb, var(--color-warm-yellow) 60%, transparent)",
   },
 };
@@ -44,8 +44,8 @@ export const CARD_TONE_STYLES: Record<FactTone, ToneStyle> = {
     border: "color-mix(in srgb, var(--color-lavender) 50%, transparent)",
   },
   yellow: {
-    color: "#b89000",
-    bg: "color-mix(in srgb, var(--color-warm-yellow) 35%, var(--card))",
+    color: "var(--tier-gold-text)",
+    bg: "var(--tier-gold-bg)",
     border: "color-mix(in srgb, var(--color-warm-yellow) 70%, transparent)",
   },
 };

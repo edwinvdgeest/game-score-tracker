@@ -69,8 +69,8 @@ export function DayOfWeekChart() {
       <div style={{ height: 140 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-            <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700 }} />
-            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700, fill: "var(--muted-foreground)" }} />
+            <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} allowDecimals={false} />
             <Tooltip
               formatter={(value) => [`${value} potjes`, "Gespeeld"]}
               labelFormatter={(label) => `${label}`}
@@ -79,7 +79,7 @@ export function DayOfWeekChart() {
               {chartData.map((entry, i) => (
                 <Cell
                   key={i}
-                  fill={entry.sessies === Math.max(...chartData.map((d) => d.sessies), 0) ? "#ff6b6b" : "#e8e0d4"}
+                  fill={entry.sessies === Math.max(...chartData.map((d) => d.sessies), 0) ? "#ff6b6b" : "var(--color-chart-bar-muted)"}
                 />
               ))}
             </Bar>

@@ -50,6 +50,21 @@
   --input: #e8dccf;
   --ring: #ff6b6b;
   --radius: 1rem;
+
+  /* Tekst bovenop de warm-yellow accent — die kleur wisselt niet mee met dark mode,
+     dus deze tekstkleuren ook niet (anders klapt het contrast om in dark mode). */
+  --on-warm-yellow: #2d2417;
+  --on-warm-yellow-muted: #6b5738;
+
+  /* Tier-kleuren voor badges — bg is een color-mix met --card, dus zowel de
+     mix-sterkte als de tekstkleur moeten per thema afgesteld worden voor genoeg contrast. */
+  --tier-gold-text: #b89000;
+  --tier-gold-bg: color-mix(in srgb, var(--color-warm-yellow) 32%, var(--card));
+  --tier-bronze-text: #a86a2c;
+  --tier-bronze-bg: color-mix(in srgb, #cd7f32 14%, var(--card));
+
+  /* Niet-gemarkeerde balk in de speeldag-grafiek */
+  --color-chart-bar-muted: #e8e0d4;
 }
 
 /* Dark mode — warm paars/navy tint, coral & geel accenten blijven */
@@ -77,6 +92,15 @@
   /* Overschrijf warm-gray en warm-white voor dark mode */
   --color-warm-white: #241e36;
   --color-warm-gray: #2e2645;
+
+  /* Tegen de donkere kaart-achtergrond wordt de color-mix anders muddy en te
+     laag-contrast — mix minder sterk mengen en de tekst lichter maken. */
+  --tier-gold-text: #ffd93d;
+  --tier-gold-bg: color-mix(in srgb, var(--color-warm-yellow) 16%, var(--card));
+  --tier-bronze-text: #e0a868;
+  --tier-bronze-bg: color-mix(in srgb, #cd7f32 18%, var(--card));
+
+  --color-chart-bar-muted: #4a3d68;
 }
 
 @layer base {

@@ -79,11 +79,11 @@ export function Leaderboard({ leaderboard, guestLeaderboard }: LeaderboardProps)
       {leader && leader.wins > 0 && (
         <div
           className="rounded-3xl p-4 text-center"
-          style={{ backgroundColor: "var(--color-warm-yellow)" }}
+          style={{ backgroundColor: "var(--color-warm-yellow)", color: "var(--on-warm-yellow)" }}
         >
           <div className="text-5xl mb-2">{leader.player.emoji}</div>
           <div className="text-xl font-black">{leader.player.name} leidt!</div>
-          <div className="text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>
+          <div className="text-sm font-semibold" style={{ color: "var(--on-warm-yellow-muted)" }}>
             {leader.wins} wins · {leader.win_percentage}%
           </div>
         </div>
