@@ -69,11 +69,16 @@ CREATE TABLE IF NOT EXISTS session_rounds (
 );
 
 -- Toegang gelijktrekken met de bestaande tabellen. De app praat met de ANON key
--- (zie lib/supabase/server.ts), en geen enkele tabel in dit project gebruikt RLS.
--- Staat RLS wél aan op deze tabel — dat gebeurt automatisch als je hem via de Table
--- Editor aanmaakt in plaats van via de SQL Editor — dan falen de inserts met "new row
--- violates row-level security policy" en kun je een potje met rondes niet opslaan.
--- Deze twee regels zijn een no-op als alles al goed staat.
+-- (zie lib/supabase/server.ts) en geen enkele tabel in dit project gebruikt RLS.
+--
+-- DIT IS NIET OPTIONEEL. Supabase zet RLS zelf aan op een nieuwe tabel in het
+-- public-schema — óók als je hem netjes via de SQL Editor aanmaakt. Zonder de regel
+-- hieronder staat session_rounds dus wél op RLS terwijl session_players dat niet doet,
+-- en dan weigert Postgres elke insert met "new row violates row-level security policy":
+-- een potje met rondes is niet op te slaan. Nagemeten met
+--   select relname, relrowsecurity from pg_class
+--   where relname in ('session_players','session_rounds');
+-- Beide regels zijn een no-op als alles al goed staat.
 ALTER TABLE session_rounds DISABLE ROW LEVEL SECURITY;
 GRANT ALL ON TABLE session_rounds TO anon, authenticated, service_role;
 

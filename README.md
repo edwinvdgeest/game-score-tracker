@@ -30,8 +30,21 @@ Score tracker voor Edwin & Lisanne (en soms Minou). Score loggen in 2 taps, dire
 > Let op: er zijn twee bestanden met prefix `002`. Draai `002_seed_data.sql` vóór
 > `002_nullable_winner_cleanup.sql`.
 >
-> Gebruik altijd de **SQL Editor**, niet de Table Editor. Die zet RLS aan op nieuwe
-> tabellen, en omdat de app met de anon key werkt zouden alle queries daarna stil falen.
+> Gebruik altijd de **SQL Editor**, niet de Table Editor. Die laatste zet RLS aan op
+> nieuwe tabellen, en omdat de app met de anon key werkt zouden alle queries daarna stil
+> falen.
+>
+> Dat is trouwens niet genoeg: **Supabase zet RLS óók zelf aan op een nieuwe tabel in het
+> public-schema die je via de SQL Editor maakt.** Een migratie die een tabel toevoegt moet
+> daarom altijd zelf `ALTER TABLE … DISABLE ROW LEVEL SECURITY` en een `GRANT` aan `anon`
+> meenemen — zie het slot van `014_game_rounds.sql`. Vergeet je dat, dan weigert Postgres
+> elke insert met "new row violates row-level security policy". Controleren:
+>
+> ```sql
+> select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace;
+> ```
+>
+> Alles hoort daar op `false` te staan.
 >
 > `009_backfill_session_players.sql` is niet terug te draaien. Lees het waarschuwingsblok
 > bovenaan dat bestand en exporteer eerst een CSV-backup.
@@ -139,9 +152,11 @@ scores en winnaar zijn bewaard — en is alleen `session_rounds` niet gevuld. **
 opnieuw op**, dan krijg je het potje dubbel. De echte melding staat in de console van de
 browser en in de serverlog.
 
-Bijna altijd is het de toegang tot de nieuwe tabel. Opnieuw draaien van
-`014_game_rounds.sql` repareert het (die migratie zet RLS uit, geeft de rechten aan `anon`
-en duwt de PostgREST-schema-cache bij). Nalopen kan zo:
+De oorzaak is de toegang tot de nieuwe tabel. **Supabase zet RLS zelf aan op een nieuwe
+tabel in het public-schema**, ook als je die via de SQL Editor aanmaakt — en omdat de app
+met de anon key werkt, weigert Postgres daarna elke insert. Opnieuw draaien van
+`014_game_rounds.sql` repareert het: die zet RLS uit, geeft de rechten aan `anon` en duwt
+de PostgREST-schema-cache bij. Nalopen kan zo:
 
 ```sql
 -- Staat RLS aan waar het uit moet? (session_players is de referentie: die staat op false)
