@@ -63,10 +63,10 @@ export function ScoreTrendChart({ trend }: ScoreTrendChartProps) {
           <LineChart data={data} margin={{ top: 4, right: 8, bottom: 4, left: -20 }}>
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 11, fontWeight: 700 }}
+              tick={{ fontSize: 11, fontWeight: 700, fill: "var(--muted-foreground)" }}
               interval="preserveStartEnd"
             />
-            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+            <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} allowDecimals={false} />
             <Tooltip
               formatter={(value, name) => {
                 const player = playerMap.get(name as string);

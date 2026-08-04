@@ -8,8 +8,8 @@ const TIER_STYLES: Record<
 > = {
   bronze: {
     label: "Bronzen badge",
-    color: "#a86a2c",
-    bg: "color-mix(in srgb, #cd7f32 14%, var(--card))",
+    color: "var(--tier-bronze-text)",
+    bg: "var(--tier-bronze-bg)",
     border: "color-mix(in srgb, #cd7f32 55%, transparent)",
   },
   silver: {
@@ -20,8 +20,8 @@ const TIER_STYLES: Record<
   },
   gold: {
     label: "Gouden badge",
-    color: "#b89000",
-    bg: "color-mix(in srgb, var(--color-warm-yellow) 35%, var(--card))",
+    color: "var(--tier-gold-text)",
+    bg: "var(--tier-gold-bg)",
     border: "color-mix(in srgb, var(--color-warm-yellow) 75%, transparent)",
   },
 };

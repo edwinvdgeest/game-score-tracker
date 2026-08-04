@@ -48,12 +48,12 @@ export function TopGamesChart({ topGames }: TopGamesChartProps) {
           >
             <XAxis
               dataKey="name"
-              tick={{ fontSize: 11, fontWeight: 700 }}
+              tick={{ fontSize: 11, fontWeight: 700, fill: "var(--muted-foreground)" }}
               angle={-35}
               textAnchor="end"
               interval={0}
             />
-            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+            <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} allowDecimals={false} />
             <Tooltip
               formatter={(value) => [`${String(value)}x`, "Gespeeld"]}
               contentStyle={{

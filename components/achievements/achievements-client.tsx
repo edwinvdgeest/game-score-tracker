@@ -22,9 +22,9 @@ const FILTERS: { id: Filter; label: string }[] = [
 ];
 
 const TIER_COLORS: Record<AchievementTier, string> = {
-  bronze: "#cd7f32",
+  bronze: "var(--tier-bronze-text)",
   silver: "#a29bfe",
-  gold: "#e0b400",
+  gold: "var(--tier-gold-text)",
 };
 
 const TIER_LABELS: Record<AchievementTier, string> = {
