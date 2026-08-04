@@ -5,6 +5,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { nl } from "date-fns/locale";
 import { Star, Archive, ArchiveX, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 import type { GameWithStats } from "@/lib/schemas";
 import { GameCover } from "@/components/games/game-cover";
 import { cn } from "@/lib/utils";
@@ -70,11 +71,22 @@ export function GameList({ games: initialGames }: GameListProps) {
     setGames((prev) =>
       prev.map((g) => (g.id === game.id ? { ...g, is_favorite: newValue } : g))
     );
-    await fetch(`/api/games/${game.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_favorite: newValue }),
-    });
+    try {
+      const res = await fetch(`/api/games/${game.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_favorite: newValue }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      // Terugdraaien: zonder dit blijft de ster aan staan terwijl de server het
+      // niet weet — op een trage of haperende verbinding lijkt het dan alsof de
+      // tik gewerkt heeft, terwijl hij bij een refresh weer weg is.
+      setGames((prev) =>
+        prev.map((g) => (g.id === game.id ? { ...g, is_favorite: !newValue } : g))
+      );
+      toast.error("Kon favoriet niet opslaan. Probeer opnieuw.");
+    }
   }
 
   async function toggleArchive(game: GameWithStats, e: React.MouseEvent) {
@@ -84,6 +96,19 @@ export function GameList({ games: initialGames }: GameListProps) {
     setGames((prev) =>
       prev.map((g) => (g.id === game.id ? { ...g, is_archived: newValue } : g))
     );
+    try {
+      const res = await fetch(`/api/games/${game.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_archived: newValue }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setGames((prev) =>
+        prev.map((g) => (g.id === game.id ? { ...g, is_archived: !newValue } : g))
+      );
+      toast.error("Kon archivering niet opslaan. Probeer opnieuw.");
+    }
   }
 
   function formatLastPlayed(dateStr: string | null): string {
